@@ -147,7 +147,7 @@ public class DataInitializerConfig {
       borderRepository.save(new TerritoryBorder(null, india, orienteMedio));
 
       // Oceania - Fronteiras internas
-      borderRepository.save(new TerritoryBorder(null, sumatra, borneo));
+      borderRepository.save(new TerritoryBorder(null, sumatra, australia));
       borderRepository.save(new TerritoryBorder(null, borneo, novaGuine));
       borderRepository.save(new TerritoryBorder(null, borneo, australia));
       borderRepository.save(new TerritoryBorder(null, novaGuine, australia));
@@ -155,6 +155,7 @@ public class DataInitializerConfig {
       // Fronteiras intercontinentais
       // Oceania - Ásia
       borderRepository.save(new TerritoryBorder(null, borneo, vietna));
+      borderRepository.save(new TerritoryBorder(null, sumatra, india));
 
       // Ásia - Africa
       borderRepository.save(new TerritoryBorder(null, orienteMedio, sudão));
@@ -171,6 +172,7 @@ public class DataInitializerConfig {
 
       // África - Europa
       borderRepository.save(new TerritoryBorder(null, egito, itália));
+      borderRepository.save(new TerritoryBorder(null, nigéria, espanha));
 
       // África - América do Sul
       borderRepository.save(new TerritoryBorder(null, nigéria, brasil));
