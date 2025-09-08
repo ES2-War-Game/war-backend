@@ -12,15 +12,15 @@ import lombok.AllArgsConstructor;
 @AllArgsConstructor
 public class Card {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "pk_id")
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "pk_id")
+  private Long id;
 
-    @Column(nullable = false, length = 20)
-    private String type;
+  @Column(nullable = false, length = 20)
+  private String type;
 
-    @ManyToOne
-    @JoinColumn(name = "territory_id", referencedColumnName = "pk_id")
-    private Territory territory;
+  @ManyToOne
+  @JoinColumn(name = "territory_id", referencedColumnName = "pk_id")
+  private Territory territory;
 }

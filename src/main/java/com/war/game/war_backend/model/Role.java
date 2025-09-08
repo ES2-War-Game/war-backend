@@ -12,11 +12,11 @@ import lombok.AllArgsConstructor;
 @AllArgsConstructor
 public class Role {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "pk_id")
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "pk_id")
+  private Long id;
 
-    @Column(nullable = false, unique = true, length = 50)
-    private String name;
+  @Column(nullable = false, unique = true, length = 50)
+  private String name;
 }
