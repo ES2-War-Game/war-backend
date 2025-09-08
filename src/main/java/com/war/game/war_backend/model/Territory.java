@@ -1,5 +1,9 @@
 package com.war.game.war_backend.model;
 
+import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
+
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -22,4 +26,17 @@ public class Territory {
 
     @Column(nullable = false, length = 50)
     private String continent;
+
+    @OneToMany(mappedBy = "territoryA")
+    private List<TerritoryBorder> bordersA;
+
+    @OneToMany(mappedBy = "territoryB")
+    private List<TerritoryBorder> bordersB;
+
+    public Set<TerritoryBorder> getAllBorders() {
+        Set<TerritoryBorder> all = new HashSet<>();
+        if (bordersA != null) all.addAll(bordersA);
+        if (bordersB != null) all.addAll(bordersB);
+        return all;
+    }
 }

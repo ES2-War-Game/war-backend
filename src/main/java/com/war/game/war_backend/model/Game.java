@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
 import java.time.LocalDateTime;
-import com.war.game.war_backend.model.PlayerGame;
 
 import java.util.Set;
 
