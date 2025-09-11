@@ -16,20 +16,20 @@ services:
       timeout: 5s
       retries: 5
 
-  # app:
-  #  build: .
-  #  ports:
-  #    - "8080:8080"
-  #  depends_on:
-  #    db:
-  #      condition: service_healthy
-  #  environment:
-  #    SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/wargame
-  #    SPRING_DATASOURCE_USERNAME: wargame
-  #    SPRING_DATASOURCE_PASSWORD: wargame
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/wargame
+      SPRING_DATASOURCE_USERNAME: wargame
+      SPRING_DATASOURCE_PASSWORD: wargame
 
-  #    SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
-  #    SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_JPA_HIBERNATE_DDL_AUTO: none
     
 volumes:
   db-data:
