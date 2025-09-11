@@ -15,39 +15,40 @@ import java.util.Set;
 @Service
 public class PlayerService {
 
-    private final PlayerRepository playerRepository;
-    private final RoleRepository roleRepository;
-    private final PasswordEncoder passwordEncoder;
+  private final PlayerRepository playerRepository;
+  private final RoleRepository roleRepository;
+  private final PasswordEncoder passwordEncoder;
 
-    @Autowired
-    public PlayerService(PlayerRepository playerRepository, RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
-        this.playerRepository = playerRepository;
-        this.roleRepository = roleRepository;
-        this.passwordEncoder = passwordEncoder;
+  @Autowired
+  public PlayerService(PlayerRepository playerRepository, RoleRepository roleRepository,
+      PasswordEncoder passwordEncoder) {
+    this.playerRepository = playerRepository;
+    this.roleRepository = roleRepository;
+    this.passwordEncoder = passwordEncoder;
+  }
+
+  public Player registerNewPlayer(PlayerRegistrationDto registrationDto) {
+    if (playerRepository.findByUsername(registrationDto.getUsername()).isPresent() ||
+        playerRepository.findByEmail(registrationDto.getEmail()).isPresent()) {
+      throw new IllegalStateException("Nome de usuario ou email ja existe!");
     }
 
-    public Player registerNewPlayer(PlayerRegistrationDto registrationDto) {
-        if (playerRepository.findByUsername(registrationDto.getUsername()).isPresent() ||
-            playerRepository.findByEmail(registrationDto.getEmail()).isPresent()) {
-            throw new IllegalStateException("Nome de usuario ou email ja existe!");
-        }
+    // role padrão é "ROLE_USER"
+    Role defaultRole = roleRepository.findByName("ROLE_USER")
+        .orElseThrow(() -> new IllegalStateException("Role padrão não encontrada."));
 
-        // role padrão é "ROLE_USER"
-        Role defaultRole = roleRepository.findByName("ROLE_USER")
-                .orElseThrow(() -> new IllegalStateException("Role padrão não encontrada."));
-        
-        Set<Role> roles = new HashSet<>();
-        roles.add(defaultRole);
+    Set<Role> roles = new HashSet<>();
+    roles.add(defaultRole);
 
-        Player newPlayer = new Player();
-        newPlayer.setUsername(registrationDto.getUsername());
-        newPlayer.setEmail(registrationDto.getEmail());
-        
-        String hashedPassword = passwordEncoder.encode(registrationDto.getPassword());
-        newPlayer.setPassword(hashedPassword);
-        
-        newPlayer.setRoles(roles);
+    Player newPlayer = new Player();
+    newPlayer.setUsername(registrationDto.getUsername());
+    newPlayer.setEmail(registrationDto.getEmail());
 
-        return playerRepository.save(newPlayer);
-    }
+    String hashedPassword = passwordEncoder.encode(registrationDto.getPassword());
+    newPlayer.setPassword(hashedPassword);
+
+    newPlayer.setRoles(roles);
+
+    return playerRepository.save(newPlayer);
+  }
 }

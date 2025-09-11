@@ -39,6 +39,15 @@ CREATE TABLE territory (
     continent VARCHAR(50) NOT NULL
 );
 
+-- Tabela para guardar as fronteiras entre territórios
+CREATE TABLE territory_border (
+    pk_id BIGSERIAL PRIMARY KEY,
+    territory_a_id BIGINT NOT NULL,
+    territory_b_id BIGINT NOT NULL,
+    CONSTRAINT fk_territory_a FOREIGN KEY (territory_a_id) REFERENCES territory(pk_id),
+    CONSTRAINT fk_territory_b FOREIGN KEY (territory_b_id) REFERENCES territory(pk_id)
+);
+
 -- Tabela para guardar as cartas
 CREATE TABLE card (
     pk_id BIGSERIAL PRIMARY KEY,
