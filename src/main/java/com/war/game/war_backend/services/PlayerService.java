@@ -51,4 +51,9 @@ public class PlayerService {
 
     return playerRepository.save(newPlayer);
   }
+
+  public Player getPlayerByUsername(String username) {
+        return playerRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Jogador não encontrado."));
+  }
 }

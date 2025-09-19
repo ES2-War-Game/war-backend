@@ -31,7 +31,7 @@ public class Player {
   private String imageUrl;
 
   // Relacionamento muitos pra muitos com Role via PlayerRole
-  @ManyToMany
+  @ManyToMany(fetch = FetchType.EAGER)
   @JoinTable(name = "player_role", joinColumns = @JoinColumn(name = "player_id"), inverseJoinColumns = @JoinColumn(name = "role_id"))
   private Set<Role> roles;
 
