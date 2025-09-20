@@ -8,6 +8,8 @@ import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
 
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.List;
 
 @Entity
 @Table(name = "game")
@@ -45,4 +47,10 @@ public class Game {
   // Relacionamento com GameTerritory
   @OneToMany(mappedBy = "game")
   private Set<GameTerritory> gameTerritories;
+
+  public List<Player> getPlayers() {
+    return this.playerGames.stream()
+        .map(PlayerGame::getPlayer)
+        .collect(Collectors.toList());
+  }
 }
