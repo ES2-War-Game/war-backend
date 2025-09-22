@@ -14,6 +14,12 @@ public class DataInitializerConfig {
   public CommandLineRunner dataInitializer(TerritoryRepository territoryRepository,
       TerritoryBorderRepository borderRepository) {
     return args -> {
+      // Verificar se os dados já foram inicializados
+      if (territoryRepository.count() > 0) {
+        System.out.println("Dados já inicializados, pulando inserção...");
+        return;
+      }
+      
       // América do Norte
       Territory alaska = territoryRepository.save(new Territory(null, "ALASKA", "América do Norte", null, null));
       Territory mackenzie = territoryRepository.save(new Territory(null, "MACKENZIE", "América do Norte", null, null));
