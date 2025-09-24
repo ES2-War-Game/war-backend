@@ -9,14 +9,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-public class DataInitializerConfig {  
+public class TerritoryInitializerConfig {  
   @Bean
-  public CommandLineRunner dataInitializer(TerritoryRepository territoryRepository,
+  public CommandLineRunner territoryInitializer(TerritoryRepository territoryRepository,
       TerritoryBorderRepository borderRepository) {
     return args -> {
       // Verificar se os dados já foram inicializados
       if (territoryRepository.count() > 0) {
-        System.out.println("Dados já inicializados, pulando inserção...");
         return;
       }
       
