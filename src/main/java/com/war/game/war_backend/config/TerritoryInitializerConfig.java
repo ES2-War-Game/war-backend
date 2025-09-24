@@ -7,93 +7,175 @@ import com.war.game.war_backend.repository.TerritoryBorderRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 
 @Configuration
 public class TerritoryInitializerConfig {  
   @Bean
+  @Order(1) // Executa primeiro
   public CommandLineRunner territoryInitializer(TerritoryRepository territoryRepository,
       TerritoryBorderRepository borderRepository) {
     return args -> {
+      System.out.println("=== TerritoryInitializer: Iniciando verificação ===");
+      
       // Verificar se os dados já foram inicializados
-      if (territoryRepository.count() > 0) {
+      long territoryCount = territoryRepository.count();
+      long borderCount = borderRepository.count();
+      
+      System.out.println("=== TerritoryInitializer: Territórios existentes: " + territoryCount + " ===");
+      System.out.println("=== TerritoryInitializer: Bordas existentes: " + borderCount + " ===");
+      
+      if (territoryCount > 0) {
+        System.out.println("=== TerritoryInitializer: Territórios já existem, pulando inicialização de territórios ===");
+        
+        // Verificar se as bordas foram criadas
+        if (borderCount == 0) {
+          System.out.println("=== TerritoryInitializer: CRIANDO APENAS AS BORDAS ===");
+          // Buscar territórios existentes para criar as bordas
+          createBorders(territoryRepository, borderRepository);
+        } else {
+          System.out.println("=== TerritoryInitializer: Bordas já existem, pulando tudo ===");
+        }
         return;
       }
+
+      System.out.println("=== TerritoryInitializer: Criando territórios ===");
       
       // América do Norte
-      Territory alaska = territoryRepository.save(new Territory(null, "ALASKA", "América do Norte", null, null));
-      Territory mackenzie = territoryRepository.save(new Territory(null, "MACKENZIE", "América do Norte", null, null));
-      Territory vancouver = territoryRepository.save(new Territory(null, "VANCOUVER", "América do Norte", null, null));
-      Territory ottawa = territoryRepository.save(new Territory(null, "OTTAWA", "América do Norte", null, null));
-      Territory labrador = territoryRepository.save(new Territory(null, "LABRADOR", "América do Norte", null, null));
-      Territory califórnia = territoryRepository
-          .save(new Territory(null, "CALIFÓRNIA", "América do Norte", null, null));
-      Territory novaYork = territoryRepository.save(new Territory(null, "NOVA YORK", "América do Norte", null, null));
-      Territory méxico = territoryRepository.save(new Territory(null, "MÉXICO", "América do Norte", null, null));
-      Territory groenlandia = territoryRepository
-          .save(new Territory(null, "GROENLÂNDIA", "América do Norte", null, null));
+      territoryRepository.save(new Territory(null, "ALASKA", "América do Norte", null, null));
+      territoryRepository.save(new Territory(null, "MACKENZIE", "América do Norte", null, null));
+      territoryRepository.save(new Territory(null, "VANCOUVER", "América do Norte", null, null));
+      territoryRepository.save(new Territory(null, "OTTAWA", "América do Norte", null, null));
+      territoryRepository.save(new Territory(null, "LABRADOR", "América do Norte", null, null));
+      territoryRepository.save(new Territory(null, "CALIFÓRNIA", "América do Norte", null, null));
+      territoryRepository.save(new Territory(null, "NOVA YORK", "América do Norte", null, null));
+      territoryRepository.save(new Territory(null, "MÉXICO", "América do Norte", null, null));
+      territoryRepository.save(new Territory(null, "GROENLÂNDIA", "América do Norte", null, null));
 
       // América do Sul
-      Territory venezuela = territoryRepository.save(new Territory(null, "VENEZUELA", "América do Sul", null, null));
-      Territory brasil = territoryRepository.save(new Territory(null, "BRASIL", "América do Sul", null, null));
-      Territory bolivia = territoryRepository.save(new Territory(null, "BOLÍVIA", "América do Sul", null, null));
-      Territory argentina = territoryRepository.save(new Territory(null, "ARGENTINA", "América do Sul", null, null));
+      territoryRepository.save(new Territory(null, "VENEZUELA", "América do Sul", null, null));
+      territoryRepository.save(new Territory(null, "BRASIL", "América do Sul", null, null));
+      territoryRepository.save(new Territory(null, "BOLÍVIA", "América do Sul", null, null));
+      territoryRepository.save(new Territory(null, "ARGENTINA", "América do Sul", null, null));
 
       // Europa
-      Territory islândia = territoryRepository.save(new Territory(null, "ISLÂNDIA", "Europa", null, null));
-      Territory inglaterra = territoryRepository.save(new Territory(null, "INGLATERRA", "Europa", null, null));
-      Territory suécia = territoryRepository.save(new Territory(null, "SUÉCIA", "Europa", null, null));
-      Territory polônia = territoryRepository.save(new Territory(null, "POLÔNIA", "Europa", null, null));
-      Territory itália = territoryRepository.save(new Territory(null, "ITÁLIA", "Europa", null, null));
-      Territory espanha = territoryRepository.save(new Territory(null, "ESPANHA", "Europa", null, null));
-      Territory moscou = territoryRepository.save(new Territory(null, "MOSCOU", "Europa", null, null));
+      territoryRepository.save(new Territory(null, "ISLÂNDIA", "Europa", null, null));
+      territoryRepository.save(new Territory(null, "INGLATERRA", "Europa", null, null));
+      territoryRepository.save(new Territory(null, "SUÉCIA", "Europa", null, null));
+      territoryRepository.save(new Territory(null, "POLÔNIA", "Europa", null, null));
+      territoryRepository.save(new Territory(null, "ITÁLIA", "Europa", null, null));
+      territoryRepository.save(new Territory(null, "ESPANHA", "Europa", null, null));
+      territoryRepository.save(new Territory(null, "MOSCOU", "Europa", null, null));
 
       // África
-      Territory egito = territoryRepository.save(new Territory(null, "EGITO", "África", null, null));
-      Territory nigéria = territoryRepository.save(new Territory(null, "NIGÉRIA", "África", null, null));
-      Territory sudão = territoryRepository.save(new Territory(null, "SUDÃO", "África", null, null));
-      Territory congo = territoryRepository.save(new Territory(null, "CONGO", "África", null, null));
-      Territory africaSul = territoryRepository.save(new Territory(null, "ÁFRICA DO SUL", "África", null, null));
-      Territory madagascar = territoryRepository.save(new Territory(null, "MADAGASCAR", "África", null, null));
+      territoryRepository.save(new Territory(null, "EGITO", "África", null, null));
+      territoryRepository.save(new Territory(null, "NIGÉRIA", "África", null, null));
+      territoryRepository.save(new Territory(null, "SUDÃO", "África", null, null));
+      territoryRepository.save(new Territory(null, "CONGO", "África", null, null));
+      territoryRepository.save(new Territory(null, "ÁFRICA DO SUL", "África", null, null));
+      territoryRepository.save(new Territory(null, "MADAGASCAR", "África", null, null));
 
       // Ásia
-      Territory omsk = territoryRepository.save(new Territory(null, "OMSK", "Ásia", null, null));
-      Territory dudinka = territoryRepository.save(new Territory(null, "DUDINKA", "Ásia", null, null));
-      Territory siberia = territoryRepository.save(new Territory(null, "SIBÉRIA", "Ásia", null, null));
-      Territory vladivostok = territoryRepository.save(new Territory(null, "VLADIVOSTOK", "Ásia", null, null));
-      Territory tchita = territoryRepository.save(new Territory(null, "TCHITA", "Ásia", null, null));
-      Territory mongólia = territoryRepository.save(new Territory(null, "MONGÓLIA", "Ásia", null, null));
-      Territory japao = territoryRepository.save(new Territory(null, "JAPÃO", "Ásia", null, null));
-      Territory aral = territoryRepository.save(new Territory(null, "ARAL", "Ásia", null, null));
-      Territory china = territoryRepository.save(new Territory(null, "CHINA", "Ásia", null, null));
-      Territory india = territoryRepository.save(new Territory(null, "ÍNDIA", "Ásia", null, null));
-      Territory vietna = territoryRepository.save(new Territory(null, "VIETNÃ", "Ásia", null, null));
-      Territory orienteMedio = territoryRepository.save(new Territory(null, "ORIENTE MÉDIO", "Ásia", null, null));
+      territoryRepository.save(new Territory(null, "OMSK", "Ásia", null, null));
+      territoryRepository.save(new Territory(null, "DUDINKA", "Ásia", null, null));
+      territoryRepository.save(new Territory(null, "SIBÉRIA", "Ásia", null, null));
+      territoryRepository.save(new Territory(null, "VLADIVOSTOK", "Ásia", null, null));
+      territoryRepository.save(new Territory(null, "TCHITA", "Ásia", null, null));
+      territoryRepository.save(new Territory(null, "MONGÓLIA", "Ásia", null, null));
+      territoryRepository.save(new Territory(null, "JAPÃO", "Ásia", null, null));
+      territoryRepository.save(new Territory(null, "ARAL", "Ásia", null, null));
+      territoryRepository.save(new Territory(null, "CHINA", "Ásia", null, null));
+      territoryRepository.save(new Territory(null, "ÍNDIA", "Ásia", null, null));
+      territoryRepository.save(new Territory(null, "VIETNÃ", "Ásia", null, null));
+      territoryRepository.save(new Territory(null, "ORIENTE MÉDIO", "Ásia", null, null));
 
       // Oceania
-      Territory australia = territoryRepository.save(new Territory(null, "AUSTRÁLIA", "Oceania", null, null));
-      Territory sumatra = territoryRepository.save(new Territory(null, "SUMATRA", "Oceania", null, null));
-      Territory borneo = territoryRepository.save(new Territory(null, "BORNEO", "Oceania", null, null));
-      Territory novaGuine = territoryRepository.save(new Territory(null, "NOVA GUINÉ", "Oceania", null, null));
+      territoryRepository.save(new Territory(null, "AUSTRÁLIA", "Oceania", null, null));
+      territoryRepository.save(new Territory(null, "SUMATRA", "Oceania", null, null));
+      territoryRepository.save(new Territory(null, "BORNEO", "Oceania", null, null));
+      territoryRepository.save(new Territory(null, "NOVA GUINÉ", "Oceania", null, null));
 
-      // Fronteiras conforme o mapa do War
+      System.out.println("=== TerritoryInitializer: 40 territórios criados com sucesso ===");
+      System.out.println("=== TerritoryInitializer: Criando bordas ===");
 
-      // América do Norte - Fronteiras internas
-      borderRepository.save(new TerritoryBorder(null, alaska, mackenzie));
-      borderRepository.save(new TerritoryBorder(null, alaska, vancouver));
-      borderRepository.save(new TerritoryBorder(null, mackenzie, vancouver));
-      borderRepository.save(new TerritoryBorder(null, mackenzie, ottawa));
-      borderRepository.save(new TerritoryBorder(null, mackenzie, groenlandia));
-      borderRepository.save(new TerritoryBorder(null, vancouver, ottawa));
-      borderRepository.save(new TerritoryBorder(null, vancouver, califórnia));
-      borderRepository.save(new TerritoryBorder(null, ottawa, labrador));
-      borderRepository.save(new TerritoryBorder(null, ottawa, novaYork));
-      borderRepository.save(new TerritoryBorder(null, ottawa, califórnia));
-      borderRepository.save(new TerritoryBorder(null, ottawa, groenlandia));
-      borderRepository.save(new TerritoryBorder(null, labrador, groenlandia));
-      borderRepository.save(new TerritoryBorder(null, labrador, novaYork));
-      borderRepository.save(new TerritoryBorder(null, califórnia, novaYork));
-      borderRepository.save(new TerritoryBorder(null, califórnia, méxico));
-      borderRepository.save(new TerritoryBorder(null, novaYork, méxico));
+      // Criar bordas
+      createBorders(territoryRepository, borderRepository);
+      
+      System.out.println("=== TerritoryInitializer: Finalizado com sucesso ===");
+    };
+  }
+
+  private void createBorders(TerritoryRepository territoryRepository, TerritoryBorderRepository borderRepository) {
+    // Buscar todos os territórios pelo nome
+    Territory alaska = territoryRepository.findByName("ALASKA").orElse(null);
+    Territory mackenzie = territoryRepository.findByName("MACKENZIE").orElse(null);
+    Territory vancouver = territoryRepository.findByName("VANCOUVER").orElse(null);
+    Territory ottawa = territoryRepository.findByName("OTTAWA").orElse(null);
+    Territory labrador = territoryRepository.findByName("LABRADOR").orElse(null);
+    Territory califórnia = territoryRepository.findByName("CALIFÓRNIA").orElse(null);
+    Territory novaYork = territoryRepository.findByName("NOVA YORK").orElse(null);
+    Territory méxico = territoryRepository.findByName("MÉXICO").orElse(null);
+    Territory groenlandia = territoryRepository.findByName("GROENLÂNDIA").orElse(null);
+
+    Territory venezuela = territoryRepository.findByName("VENEZUELA").orElse(null);
+    Territory brasil = territoryRepository.findByName("BRASIL").orElse(null);
+    Territory bolivia = territoryRepository.findByName("BOLÍVIA").orElse(null);
+    Territory argentina = territoryRepository.findByName("ARGENTINA").orElse(null);
+
+    Territory islândia = territoryRepository.findByName("ISLÂNDIA").orElse(null);
+    Territory inglaterra = territoryRepository.findByName("INGLATERRA").orElse(null);
+    Territory suécia = territoryRepository.findByName("SUÉCIA").orElse(null);
+    Territory polônia = territoryRepository.findByName("POLÔNIA").orElse(null);
+    Territory itália = territoryRepository.findByName("ITÁLIA").orElse(null);
+    Territory espanha = territoryRepository.findByName("ESPANHA").orElse(null);
+    Territory moscou = territoryRepository.findByName("MOSCOU").orElse(null);
+
+    Territory egito = territoryRepository.findByName("EGITO").orElse(null);
+    Territory nigéria = territoryRepository.findByName("NIGÉRIA").orElse(null);
+    Territory sudão = territoryRepository.findByName("SUDÃO").orElse(null);
+    Territory congo = territoryRepository.findByName("CONGO").orElse(null);
+    Territory africaSul = territoryRepository.findByName("ÁFRICA DO SUL").orElse(null);
+    Territory madagascar = territoryRepository.findByName("MADAGASCAR").orElse(null);
+
+    Territory omsk = territoryRepository.findByName("OMSK").orElse(null);
+    Territory dudinka = territoryRepository.findByName("DUDINKA").orElse(null);
+    Territory siberia = territoryRepository.findByName("SIBÉRIA").orElse(null);
+    Territory vladivostok = territoryRepository.findByName("VLADIVOSTOK").orElse(null);
+    Territory tchita = territoryRepository.findByName("TCHITA").orElse(null);
+    Territory mongólia = territoryRepository.findByName("MONGÓLIA").orElse(null);
+    Territory japao = territoryRepository.findByName("JAPÃO").orElse(null);
+    Territory aral = territoryRepository.findByName("ARAL").orElse(null);
+    Territory china = territoryRepository.findByName("CHINA").orElse(null);
+    Territory india = territoryRepository.findByName("ÍNDIA").orElse(null);
+    Territory vietna = territoryRepository.findByName("VIETNÃ").orElse(null);
+    Territory orienteMedio = territoryRepository.findByName("ORIENTE MÉDIO").orElse(null);
+
+    Territory australia = territoryRepository.findByName("AUSTRÁLIA").orElse(null);
+    Territory sumatra = territoryRepository.findByName("SUMATRA").orElse(null);
+    Territory borneo = territoryRepository.findByName("BORNEO").orElse(null);
+    Territory novaGuine = territoryRepository.findByName("NOVA GUINÉ").orElse(null);
+
+    int bordersCreated = 0;
+
+    // Fronteiras conforme o mapa do War
+
+    // América do Norte - Fronteiras internas
+    borderRepository.save(new TerritoryBorder(null, alaska, mackenzie)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, alaska, vancouver)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, mackenzie, vancouver)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, mackenzie, ottawa)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, mackenzie, groenlandia)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, vancouver, ottawa)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, vancouver, califórnia)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, ottawa, labrador)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, ottawa, novaYork)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, ottawa, califórnia)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, ottawa, groenlandia)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, labrador, groenlandia)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, labrador, novaYork)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, califórnia, novaYork)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, califórnia, méxico)); bordersCreated++;
+    borderRepository.save(new TerritoryBorder(null, novaYork, méxico)); bordersCreated++;
 
       // América do Sul - Fronteiras internas
       borderRepository.save(new TerritoryBorder(null, venezuela, brasil));
@@ -179,14 +261,15 @@ public class TerritoryInitializerConfig {
       borderRepository.save(new TerritoryBorder(null, egito, itália));
       borderRepository.save(new TerritoryBorder(null, nigéria, espanha));
 
-      // África - América do Sul
-      borderRepository.save(new TerritoryBorder(null, nigéria, brasil));
+    // África - América do Sul
+    borderRepository.save(new TerritoryBorder(null, nigéria, brasil)); bordersCreated++;
 
-      // Europa - América do Norte
-      borderRepository.save(new TerritoryBorder(null, islândia, groenlandia));
+    // Europa - América do Norte
+    borderRepository.save(new TerritoryBorder(null, islândia, groenlandia)); bordersCreated++;
 
-      // América do Sul - América do Norte
-      borderRepository.save(new TerritoryBorder(null, méxico, venezuela));
-    };
+    // América do Sul - América do Norte
+    borderRepository.save(new TerritoryBorder(null, méxico, venezuela)); bordersCreated++;
+    
+    System.out.println("=== TerritoryInitializer: " + bordersCreated + " bordas criadas com sucesso ===");
   }
 }
