@@ -25,6 +25,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - ~/.m2:/root/.m2
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/wargame
       SPRING_DATASOURCE_USERNAME: wargame
