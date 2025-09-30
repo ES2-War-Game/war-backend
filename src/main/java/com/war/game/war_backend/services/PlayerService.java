@@ -5,12 +5,14 @@ import com.war.game.war_backend.model.Role;
 import com.war.game.war_backend.repository.PlayerRepository;
 import com.war.game.war_backend.repository.RoleRepository;
 import com.war.game.war_backend.controller.dto.request.PlayerRegistrationDto;
+import com.war.game.war_backend.controller.dto.request.PlayerUpdateDto;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.List;
 
 @Service
 public class PlayerService {
@@ -53,7 +55,25 @@ public class PlayerService {
   }
 
   public Player getPlayerByUsername(String username) {
-        return playerRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("Jogador não encontrado."));
+    return playerRepository.findByUsername(username)
+        .orElseThrow(() -> new IllegalArgumentException("Jogador não encontrado."));
+  }
+
+  public Player getPlayerById(Long id) {
+    return playerRepository.findById(id)
+        .orElseThrow(() -> new IllegalArgumentException("Jogador não encontrado."));
+  }
+
+  public List<Player> getAllPlayers() {
+    return playerRepository.findAll();
+  }
+
+  public Player updatePlayer(Long id, PlayerUpdateDto updateDto) {
+    Player player = getPlayerById(id);
+    if (updateDto.getEmail() != null)
+      player.setEmail(updateDto.getEmail());
+    if (updateDto.getImageUrl() != null)
+      player.setImageUrl(updateDto.getImageUrl());
+    return playerRepository.save(player);
   }
 }
