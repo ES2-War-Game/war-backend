@@ -1,17 +1,22 @@
 package com.war.game.war_backend.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.war.game.war_backend.controller.dto.request.PlayerRegistrationDto;
+import com.war.game.war_backend.controller.dto.request.PlayerUpdateDto;
 import com.war.game.war_backend.model.Player;
 import com.war.game.war_backend.security.jwt.JwtTokenUtil;
 import com.war.game.war_backend.services.PlayerService;
+import java.util.Arrays;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +45,7 @@ class PlayerControllerWebTest {
   private JwtTokenUtil jwtTokenUtil;
 
   private static final String REGISTER_ENDPOINT = "/api/v1/players/register";
+  private static final String PLAYERS_ENDPOINT = "/api/v1/players";
 
   @BeforeEach
   void setup() {
@@ -100,5 +106,90 @@ class PlayerControllerWebTest {
         .contentType(MediaType.APPLICATION_JSON)
         .content(objectMapper.writeValueAsString(dto)))
         .andExpect(status().isConflict());
+  }
+
+  @Test
+  void getPlayers_returns200_andJsonArray_whenServiceReturnsPlayers() throws Exception {
+    Player player1 = new Player();
+    player1.setId(1L);
+    player1.setUsername("usuario1");
+    player1.setEmail("u1@ex.com");
+    
+    Player player2 = new Player();
+    player2.setId(2L);
+    player2.setUsername("usuario2");
+    player2.setEmail("u2@ex.com");
+
+    when(playerService.getAllPlayers()).thenReturn(Arrays.asList(player1, player2));
+
+    mockMvc.perform(get(PLAYERS_ENDPOINT))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$").isArray())
+        .andExpect(jsonPath("$[0].username").value("usuario1"))
+        .andExpect(jsonPath("$[0].email").value("u1@ex.com"))
+        .andExpect(jsonPath("$[1].username").value("usuario2"))
+        .andExpect(jsonPath("$[1].email").value("u2@ex.com"));
+  }
+
+  @Test
+  void getPlayer_returns200_andJsonBody_whenPlayerExists() throws Exception {
+    Player player = new Player();
+    player.setId(1L);
+    player.setUsername("usuario1");
+    player.setEmail("u1@ex.com");
+
+    when(playerService.getPlayerById(1L)).thenReturn(player);
+
+    mockMvc.perform(get(PLAYERS_ENDPOINT + "/1"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.username").value("usuario1"))
+        .andExpect(jsonPath("$.email").value("u1@ex.com"));
+  }
+
+  @Test
+  void getPlayer_returns404_whenPlayerNotFound() throws Exception {
+    when(playerService.getPlayerById(1L)).thenThrow(new IllegalArgumentException("Jogador não encontrado"));
+
+    mockMvc.perform(get(PLAYERS_ENDPOINT + "/1"))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void patchPlayer_returns200_andUpdatedJson_whenValidUpdate() throws Exception {
+    PlayerUpdateDto updateDto = new PlayerUpdateDto();
+    updateDto.setEmail("novo@email.com");
+    updateDto.setImageUrl("nova-imagem.jpg");
+
+    Player updatedPlayer = new Player();
+    updatedPlayer.setId(1L);
+    updatedPlayer.setUsername("usuario1");
+    updatedPlayer.setEmail("novo@email.com");
+    updatedPlayer.setImageUrl("nova-imagem.jpg");
+
+    when(playerService.updatePlayer(eq(1L), any(PlayerUpdateDto.class))).thenReturn(updatedPlayer);
+
+    mockMvc.perform(patch(PLAYERS_ENDPOINT + "/1")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(updateDto)))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.email").value("novo@email.com"))
+        .andExpect(jsonPath("$.imageUrl").value("nova-imagem.jpg"));
+  }
+
+  @Test
+  void patchPlayer_returns404_whenPlayerNotFound() throws Exception {
+    PlayerUpdateDto updateDto = new PlayerUpdateDto();
+    updateDto.setEmail("novo@email.com");
+
+    when(playerService.updatePlayer(eq(1L), any(PlayerUpdateDto.class)))
+        .thenThrow(new IllegalArgumentException("Jogador não encontrado"));
+
+    mockMvc.perform(patch(PLAYERS_ENDPOINT + "/1")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(updateDto)))
+        .andExpect(status().isNotFound());
   }
 }

@@ -15,8 +15,15 @@ RUN ./mvnw dependency:go-offline -B
 # Copy source code
 COPY src src
 
-# Build the application
-RUN ./mvnw clean package -DskipTests
+# Build argument to control test execution
+ARG SKIP_TESTS=false
+
+# Build the application (with or without tests based on SKIP_TESTS arg)
+RUN if [ "$SKIP_TESTS" = "true" ] ; then \
+      echo "Building without tests..." && ./mvnw clean package -DskipTests ; \
+    else \
+      echo "Building with tests..." && ./mvnw clean package ; \
+    fi
 
 # Runtime stage
 FROM eclipse-temurin:17-jre-alpine
