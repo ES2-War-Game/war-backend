@@ -89,7 +89,7 @@ ADD CONSTRAINT fk_winner FOREIGN KEY (winner_id) REFERENCES player_game(pk_id);
 -- Tabela de relacionamento para as cartas que os jogadores possuem em um jogo
 CREATE TABLE player_card (
     pk_id BIGSERIAL PRIMARY KEY,
-    player_game_id BIGINT NOT NULL,  -- ⬅️ Nova chave estrangeira
+    player_game_id BIGINT NOT NULL,
     card_id BIGINT NOT NULL,
     CONSTRAINT fk_player_game FOREIGN KEY (player_game_id) REFERENCES player_game(pk_id),
     CONSTRAINT fk_card FOREIGN KEY (card_id) REFERENCES card(pk_id)
@@ -100,8 +100,9 @@ CREATE TABLE game_territory (
     pk_id BIGSERIAL PRIMARY KEY,
     game_id BIGINT NOT NULL,
     territory_id BIGINT NOT NULL,
-    player_game_id BIGINT NULL,  -- ⬅️ Nova chave estrangeira
+    player_game_id BIGINT NULL,
     armies INTEGER NOT NULL DEFAULT 0,
+    unallocated_armies INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT fk_game FOREIGN KEY (game_id) REFERENCES game(pk_id),
     CONSTRAINT fk_territory FOREIGN KEY (territory_id) REFERENCES territory(pk_id),
     CONSTRAINT fk_player_game FOREIGN KEY (player_game_id) REFERENCES player_game(pk_id)

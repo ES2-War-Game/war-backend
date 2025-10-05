@@ -48,4 +48,7 @@ public class PlayerGame {
 
   @OneToMany(mappedBy = "owner")
   private Set<GameTerritory> ownedTerritories;
+
+  @Column(name = "unallocated_armies")
+  private Integer unallocatedArmies;
 }
