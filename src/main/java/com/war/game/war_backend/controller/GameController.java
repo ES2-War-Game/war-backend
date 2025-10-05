@@ -21,16 +21,25 @@ import java.util.stream.Collectors;
 import jakarta.validation.Valid;
 import java.security.Principal;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+
 @RestController
 @RequestMapping("/api/games")
 @RequiredArgsConstructor
+@Tag(name = "Partida (Game)", description = "Endpoints para gerenciamento de lobbies, início e ciclo de turnos de partidas do War.")
 public class GameController {
 
     private final GameService gameService;
     private final PlayerService playerService;
     private final SimpMessagingTemplate messagingTemplate;
 
+    // --- LOBBY MANAGEMENT ---
+
     @PostMapping("/create-lobby")
+    @Operation(summary = "Cria um novo lobby.", description = "O jogador autenticado torna-se automaticamente o dono do lobby.")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<LobbyCreationResponseDto> createLobby(@Valid @RequestBody LobbyCreationRequestDto request, Principal principal) {
@@ -46,6 +55,7 @@ public class GameController {
     }
 
     @GetMapping("/lobbies")
+    @Operation(summary = "Lista todos os lobbies (partidas) disponíveis.", description = "Retorna apenas jogos no status 'Lobby'.")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<LobbyListResponseDto>> getAllLobbies() {
@@ -63,9 +73,13 @@ public class GameController {
     }
 
     @PostMapping("/join/{lobbyId}")
+    @Operation(summary = "Entra em um lobby existente.", description = "Adiciona o jogador autenticado ao lobby especificado. Envia notificação WebSocket.")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<Player>> joinLobby(@PathVariable Long lobbyId, Principal principal) {
+    public ResponseEntity<List<Player>> joinLobby(
+            @Parameter(description = "ID da partida (lobby) que o jogador deseja entrar.") 
+            @PathVariable Long lobbyId, 
+            Principal principal) {
         String username = principal.getName();
         Player player = playerService.getPlayerByUsername(username);
 
@@ -78,23 +92,92 @@ public class GameController {
     }
 
     @PostMapping("/leave/{lobbyId}")
+    @Operation(summary = "Sai de um lobby.", description = "Remove o jogador autenticado do lobby. Se o dono sair, a posse é transferida ou o lobby é excluído.")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<Player>> leaveLobby(@PathVariable Long lobbyId, Principal principal) {
+    public ResponseEntity<List<Player>> leaveLobby(
+            @Parameter(description = "ID da partida (lobby) que o jogador deseja sair.") 
+            @PathVariable Long lobbyId, 
+            Principal principal) {
         String username = principal.getName();
         Player player = playerService.getPlayerByUsername(username);
 
         Game updatedLobby = gameService.removePlayerFromLobby(lobbyId, player);
 
-        // Verifica se o lobby ainda existe após o jogador sair
         if (updatedLobby == null) {
-            // Envie uma lista vazia ou uma notificação de que o lobby foi excluído
             return ResponseEntity.ok(List.of()); 
         }
 
-        // Envia a lista atualizada de jogadores para todos que estão no lobby.
         messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId, updatedLobby.getPlayers());
 
         return ResponseEntity.ok(updatedLobby.getPlayers());
+    }
+    
+    // --- GAMEPLAY MANAGEMENT ---
+
+    @PostMapping("/start/{lobbyId}")
+    @Operation(summary = "Inicia a partida.", 
+               description = "Distribui territórios, objetivos e tropas iniciais. Move o jogo de 'Lobby' para 'In Game - Initial Allocation'. Apenas o dono pode chamar.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> startGame(
+            @Parameter(description = "ID do lobby a ser iniciado.") 
+            @PathVariable Long lobbyId, 
+            Principal principal) {
+        String username = principal.getName();
+
+        try {
+            Game startedGame = gameService.startGame(lobbyId, username);
+            messagingTemplate.convertAndSend("/topic/game/" + lobbyId + "/state", startedGame);
+            return ResponseEntity.ok(startedGame);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{gameId}/allocate")
+    @Operation(summary = "Alocação de Tropas.", 
+               description = "Usado tanto na 'Alocação Inicial' (fase: Initial Allocation) quanto no 'Reforço' (fase: Reinforcement). Coloca 'count' tropas no território 'territoryId'. Avança automaticamente a fase/turno quando a reserva zera.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> allocateTroops(
+            @Parameter(description = "ID da partida.") @PathVariable Long gameId, 
+            @Parameter(description = "ID do território onde as tropas serão colocadas.") @RequestParam Long territoryId,
+            @Parameter(description = "Número de tropas a serem alocadas (deve ser <= reserva).") @RequestParam Integer count,
+            Principal principal) {
+        String username = principal.getName();
+        
+        try {
+            Game updatedGame = gameService.allocateTroops(gameId, username, territoryId, count);
+            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", updatedGame);
+            return ResponseEntity.ok(updatedGame);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{gameId}/end-turn")
+    @Operation(summary = "Encerra a fase atual e avança o turno/fase.", 
+               description = "Usado para: 1) Mudar de Reinforcement para Attack. 2) Mudar de Movement para o próximo jogador (que começará em Reinforcement).")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> endTurn(
+            @Parameter(description = "ID da partida.") 
+            @PathVariable Long gameId, 
+            Principal principal) {
+        String username = principal.getName();
+        
+        try {
+            Game updatedGame = gameService.startNextTurn(gameId, username);
+
+            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", updatedGame);
+
+            return ResponseEntity.ok(updatedGame);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }
