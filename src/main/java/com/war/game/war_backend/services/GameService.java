@@ -1,19 +1,27 @@
 package com.war.game.war_backend.services;
 
+import com.war.game.war_backend.model.CardType;
 import com.war.game.war_backend.model.Game;
 import com.war.game.war_backend.model.GameTerritory;
 import com.war.game.war_backend.model.Objective;
 import com.war.game.war_backend.model.Player;
+import com.war.game.war_backend.model.PlayerCard;
 import com.war.game.war_backend.model.PlayerGame;
 import com.war.game.war_backend.model.Territory;
+import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
+import com.war.game.war_backend.model.Card;
+import com.war.game.war_backend.repository.CardRepository;
 import com.war.game.war_backend.repository.GameRepository;
 import com.war.game.war_backend.repository.PlayerGameRepository;
+import com.war.game.war_backend.repository.TerritoryBorderRepository;
 import com.war.game.war_backend.repository.TerritoryRepository;
 import com.war.game.war_backend.repository.ObjectiveRepository;
+import com.war.game.war_backend.repository.PlayerCardRepository;
 import com.war.game.war_backend.repository.GameTerritoryRepository;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +30,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Map;
@@ -35,8 +44,13 @@ public class GameService {
     private final TerritoryRepository territoryRepository;
     private final ObjectiveRepository objectiveRepository;
     private final GameTerritoryRepository gameTerritoryRepository;
+    private final PlayerCardRepository playerCardRepository;
+    private final CardRepository cardRepository;
+    private final TerritoryBorderRepository territoryBorderRepository;
 
+    private final SimpMessagingTemplate messagingTemplate; 
     private final PlayerService playerService;
+    private final Random random = new Random();
 
     private static final Map<String, Integer> CONTINENT_BONUSES = Map.of(
         "Asia", 7,
@@ -271,7 +285,6 @@ public class GameService {
         return gameRepository.save(game);
     }
 
-
     @Transactional(readOnly = true)
     public int calculateReinforcementTroops(Game game, PlayerGame playerGame) {
         
@@ -320,12 +333,16 @@ public class GameService {
         Game game = gameRepository.findById(gameId)
             .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
 
-        if (!"In Game - Running".equals(game.getStatus())) {
-            throw new RuntimeException("O jogo não está em andamento (Running).");
+        // Validação inicial para verificar se o jogo está ativo
+        if (!game.getStatus().startsWith("In Game")) {
+            throw new RuntimeException("O jogo não está em andamento.");
         }
 
-        // Achar o jogador atual e o próximo jogador
+        // Achar o jogador atual e validar se a chamada é dele
         PlayerGame currentPlayerGame = game.getTurnPlayer();
+        if (!currentPlayerGame.getPlayer().getUsername().equals(initiatingUsername)) {
+            throw new RuntimeException("Você não tem permissão para encerrar o turno de outro jogador.");
+        }
         
         // Buscar todos os jogadores ordenados
         List<PlayerGame> allPlayers = playerGameRepository.findByGame(game).stream()
@@ -336,30 +353,253 @@ public class GameService {
             throw new RuntimeException("Nenhum jogador na partida.");
         }
         
-        // Encontrar o índice do jogador atual
-        int currentPlayerIndex = allPlayers.indexOf(currentPlayerGame);
+        // --- LÓGICA DE TRANSIÇÃO DE FASES ---
         
-        // O próximo índice na ordem circular
-        int nextPlayerIndex = (currentPlayerIndex + 1) % allPlayers.size();
-        PlayerGame nextPlayerGame = allPlayers.get(nextPlayerIndex);
+        String currentStatus = game.getStatus();
 
-        // Transição do Turno
-        game.setTurnPlayer(nextPlayerGame);
+        if ("In Game - Reinforcement".equals(currentStatus)) {
+            // Se estiver em Reforço, o 'endTurn' avança para o Ataque.
+            
+            // Regra: O jogador deve alocar todas as tropas antes de avançar para Ataque.
+            if (currentPlayerGame.getUnallocatedArmies() > 0) {
+                throw new RuntimeException("Você deve alocar todas as suas tropas de reforço (" + currentPlayerGame.getUnallocatedArmies() + ") antes de avançar para a fase de Ataque.");
+            }
+            
+            game.setStatus("In Game - Attack");
         
-        // Cálculo e Atribuição de Tropas
-        int reinforcementTroops = calculateReinforcementTroops(game, nextPlayerGame);
+        } else if ("In Game - Attack".equals(currentStatus)) {
+            // Se estiver em Ataque, o 'endTurn' avança para Movimentação.
+            game.setStatus("In Game - Movement");
         
-        // Reutilizando o campo de alocação de tropas
-        nextPlayerGame.setUnallocatedArmies(reinforcementTroops); 
-        
-        // Mudar o Status para a fase de Alocação (Turno é Alocação, Ataque e Movimentação)
-        game.setStatus("In Game - Reinforcement"); 
+        } else if ("In Game - Movement".equals(currentStatus)) {
+            // Se estiver em Movimentação, o 'endTurn' encerra o turno e passa para o próximo jogador.
+            
+            long currentCards = playerCardRepository.countByPlayerGame(currentPlayerGame); 
+            
+            if (currentPlayerGame.getConqueredTerritoryThisTurn() && currentCards < 5) {
+                // Se conquistou pelo menos 1 território e não está no limite de 5 cartas, recebe uma
+                drawCard(currentPlayerGame);
+            }
+            
+            // O jogador que inicia o turno deve ter a flag zerada
+            currentPlayerGame.setConqueredTerritoryThisTurn(false);
+            
+            // Encontrar o índice do jogador atual
+            int currentPlayerIndex = allPlayers.indexOf(currentPlayerGame);
+            
+            // O próximo índice na ordem circular
+            int nextPlayerIndex = (currentPlayerIndex + 1) % allPlayers.size();
+            PlayerGame nextPlayerGame = allPlayers.get(nextPlayerIndex);
 
-        playerGameRepository.save(nextPlayerGame);
+            // Transição do Turno
+            game.setTurnPlayer(nextPlayerGame);
+
+            // Cálculo e Atribuição de Tropas
+            int reinforcementTroops = calculateReinforcementTroops(game, nextPlayerGame);
+            
+            // Reutilizando o campo de alocação de tropas
+            nextPlayerGame.setUnallocatedArmies(reinforcementTroops); 
+            
+            // Mudar o Status para a fase de Alocação (Início do novo turno)
+            game.setStatus("In Game - Reinforcement"); 
+
+            playerGameRepository.save(currentPlayerGame);
+            playerGameRepository.save(nextPlayerGame);
+            
+        } else if ("Lobby".equals(currentStatus) || "In Game - Initial Allocation".equals(currentStatus) || "Game Over".equals(currentStatus)) {
+            // Se o jogo está em Initial Allocation, o 'endTurn' não é usado,
+            // e se estiver em Lobby/Game Over, também não deve ser chamado.
+            throw new RuntimeException("A ação de encerrar o turno não é válida na fase atual: " + currentStatus);
+        } else {
+            throw new RuntimeException("O jogo não está em uma fase de turno conhecida.");
+        }
+        
         return gameRepository.save(game);
     }
 
-    // Distribui 1 tropa em cada território para os jogadores.
+    @Transactional
+    public Game tradeCardsForReinforcements(Long gameId, String username, List<Long> playerCardIdsToTrade) {
+        // Validações
+        Game game = gameRepository.findById(gameId).orElseThrow(() -> new RuntimeException("Partida não encontrada."));
+        Player player = playerService.getPlayerByUsername(username);
+        PlayerGame playerGame = playerGameRepository.findByGameAndPlayer(game, player).orElseThrow(() -> new RuntimeException("Jogador não está na partida."));
+
+        if (!game.getTurnPlayer().equals(playerGame)) {
+            throw new RuntimeException("Não é o seu turno.");
+        }
+        if (!"In Game - Reinforcement".equals(game.getStatus())) {
+            throw new RuntimeException("Só é permitido trocar cartas na fase de reforço.");
+        }
+        
+        // Busca as entidades PlayerCard e Card
+        List<PlayerCard> playerCardsToTrade = playerCardRepository.findByPlayerGameAndIdIn(playerGame, playerCardIdsToTrade);
+        
+        if (playerCardsToTrade.size() != 3) {
+            throw new RuntimeException("Você deve selecionar exatamente 3 cartas para a troca.");
+        }
+        
+        List<Card> cardsToTrade = playerCardsToTrade.stream().map(PlayerCard::getCard).collect(Collectors.toList());
+        
+        // Valida o Conjunto de Troca
+        if (!isTradeSetValid(cardsToTrade)) {
+            throw new RuntimeException("O conjunto de cartas não é válido para troca.");
+        }
+
+        // Calcula e Atribui Tropas
+        int bonusTroops = calculateCardBonus(game);
+        
+        // Bônus por território, Pode deixar o aviso aqui mesmo, talvez façamos algo com esse valor depois
+        int territoryBonus = calculateTerritoryMatchBonus(game, playerGame, cardsToTrade);
+
+        // Adiciona as tropas à reserva do jogador
+        playerGame.setUnallocatedArmies(playerGame.getUnallocatedArmies() + bonusTroops);
+
+        // Remove as Cartas
+        playerCardRepository.deleteAll(playerCardsToTrade);
+
+        // Atualiza o Contador Global de Trocas
+        game.setCardSetExchangeCount(game.getCardSetExchangeCount() + 1);
+
+        return gameRepository.save(game);
+    }
+
+    @Transactional
+    public Game attackTerritory(Long gameId, String initiatingUsername, AttackRequestDto dto) {
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
+
+        // Validação do Estado e Jogador
+        if (!"In Game - Attack".equals(game.getStatus())) {
+            throw new RuntimeException("Ação inválida. A partida não está na fase de Ataque.");
+        }
+
+        PlayerGame currentPlayerGame = game.getTurnPlayer();
+        if (!currentPlayerGame.getPlayer().getUsername().equals(initiatingUsername)) {
+            throw new RuntimeException("Não é o seu turno para atacar.");
+        }
+
+        // Busca de Territórios
+        GameTerritory sourceTerritory = gameTerritoryRepository.findById(dto.getSourceTerritoryId())
+                .orElseThrow(() -> new RuntimeException("Território atacante não encontrado."));
+        GameTerritory targetTerritory = gameTerritoryRepository.findById(dto.getTargetTerritoryId())
+                .orElseThrow(() -> new RuntimeException("Território defensor não encontrado."));
+
+        // Validação de Posse, Vizinhança e Tropas
+        if (!sourceTerritory.getOwner().equals(currentPlayerGame)) {
+            throw new RuntimeException("O território atacante não pertence a você.");
+        }
+        if (targetTerritory.getOwner().equals(currentPlayerGame)) {
+            throw new RuntimeException("Você não pode atacar seu próprio território.");
+        }
+        
+        // Checa se existe um registro de fronteira entre os dois territórios mestres.
+        boolean isNeighbor = territoryBorderRepository.findByTerritoryIds(
+            sourceTerritory.getTerritory().getId(), 
+            targetTerritory.getTerritory().getId()
+        ).isPresent();
+        
+        if (!isNeighbor) {
+            throw new RuntimeException("O território " + targetTerritory.getTerritory().getName() + " não é vizinho do território atacante.");
+        }
+
+        // Validação de Tropas do Atacante e Dados
+        int armiesAvailable = sourceTerritory.getArmies();
+        if (armiesAvailable <= dto.getAttackDiceCount()) {
+            throw new RuntimeException("Você deve deixar pelo menos um exército no território atacante. Máximo de dados de ataque permitido: " + (armiesAvailable - 1));
+        }
+
+        // Determinar Dados de Defesa
+        PlayerGame defenderPlayerGame = targetTerritory.getOwner();
+        int defenseArmies = targetTerritory.getArmies();
+        
+        // Defensor usa 2 dados se tiver 2 ou mais exércitos, senão usa 1.
+        int defenseDiceCount = (defenseArmies >= 2) ? 2 : 1;
+        
+        // Rolagem de Dados e Resolução
+        List<Integer> attackRolls = simulateDiceRolls(dto.getAttackDiceCount());
+        List<Integer> defenseRolls = simulateDiceRolls(defenseDiceCount);
+        
+        int[] combatResult = resolveCombat(attackRolls, defenseRolls); // [perdas_atacante, perdas_defensor]
+        int attackerLosses = combatResult[0];
+        int defenderLosses = combatResult[1];
+
+        // Aplicação das Perdas
+        sourceTerritory.setArmies(sourceTerritory.getArmies() - attackerLosses);
+        targetTerritory.setArmies(targetTerritory.getArmies() - defenderLosses);
+
+        // Log (Só pra ver o que aconteceu, podemos mostrar no front depois)
+        System.out.printf("Combate: %s vs %s. Atacante (%s) perdeu %d. Defensor (%s) perdeu %d.\n",
+                sourceTerritory.getTerritory().getName(), 
+                targetTerritory.getTerritory().getName(),
+                String.join(",", attackRolls.stream().map(Object::toString).toList()),
+                attackerLosses,
+                String.join(",", defenseRolls.stream().map(Object::toString).toList()),
+                defenderLosses);
+
+        gameTerritoryRepository.save(sourceTerritory);
+        gameTerritoryRepository.save(targetTerritory);
+        
+        // Lógica de Conquista
+        if (targetTerritory.getArmies() <= 0) {
+            
+            // Validação do movimento mínimo
+            if (dto.getTroopsToMoveAfterConquest() < dto.getAttackDiceCount() || dto.getTroopsToMoveAfterConquest() >= armiesAvailable) {
+                // A regra é mover no mínimo o número de dados usados, e no máximo (exércitos disponíveis - 1)
+                throw new RuntimeException(String.format("Movimento de exércitos inválido após a conquista. Mínimo: %d, Máximo: %d.", dto.getAttackDiceCount(), armiesAvailable - 1));
+            }
+            
+            // Transferência de Posse e Tropas
+            targetTerritory.setOwner(currentPlayerGame);
+            targetTerritory.setArmies(dto.getTroopsToMoveAfterConquest());
+            
+            sourceTerritory.setArmies(sourceTerritory.getArmies() - dto.getTroopsToMoveAfterConquest());
+
+            // Setar a flag de carta (Recompensa)
+            currentPlayerGame.setConqueredTerritoryThisTurn(true);
+
+            // Salvar
+            gameTerritoryRepository.save(targetTerritory);
+            gameTerritoryRepository.save(sourceTerritory);
+            playerGameRepository.save(currentPlayerGame); // Salva a flag de conquista
+
+            // Checar Fim de Jogo
+            checkGameOver(game, defenderPlayerGame);
+
+            System.out.println("Território conquistado!");
+        }
+
+        // Notificação e retorno como de costume
+        messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", game);
+        return game;
+    }
+
+    // Verifica se o defensor perdeu todos os territórios e, se sim, o remove do jogo e o atacante herda suas cartas.
+    private void checkGameOver(Game game, PlayerGame defeatedPlayer) {
+        long territoriesOwned = gameTerritoryRepository.countByOwner(defeatedPlayer);
+
+        if (territoriesOwned == 0) {
+            // O jogador defensor foi eliminado. O atacante herda suas cartas.
+            
+            List<PlayerCard> defeatedCards = playerCardRepository.findByPlayerGame(defeatedPlayer);
+            for (PlayerCard card : defeatedCards) {
+                card.setPlayerGame(game.getTurnPlayer());
+                playerCardRepository.save(card);
+            }
+            
+            // Marcar o jogador como 'Derrotado' (ou similar) e removê-lo da lista de ativos do jogo.
+            // Para simplificar, podemos apenas remover o jogador do jogo ou setar um status.
+            defeatedPlayer.setStillInGame(false); // Assumindo que você tem essa flag
+            playerGameRepository.save(defeatedPlayer);
+            
+            System.out.println("Jogador " + defeatedPlayer.getPlayer().getUsername() + " foi eliminado. Cartas transferidas.");
+            
+            // Checar se restou apenas um jogador
+            // ... (Lógica de fim de jogo final)
+        }
+    }
+
+    // AUXILIARES ==================================
+
     private List<GameTerritory> distributeTerritories(Game game, List<PlayerGame> playerGames, List<Territory> allTerritories) {
         List<GameTerritory> gameTerritories = new java.util.ArrayList<>();
         int playerIndex = 0;
@@ -387,5 +627,123 @@ public class GameService {
         if (playerCount == 5) return 25;
         if (playerCount == 6) return 20;
         return 0;
+    }
+
+    private int calculateCardBonus(Game game) {
+        int count = game.getCardSetExchangeCount();
+
+        if (count == 0) return 4;
+        if (count == 1) return 6;
+        if (count == 2) return 8;
+        if (count == 3) return 10;
+        if (count == 4) return 12;
+
+        // 6ª troca em diante: 15, 20, 25, 30
+        // Fórmula: 15 + (exchangeCount - 5) * 5
+        return 15 + (count - 5) * 5;
+    }
+
+    private boolean isTradeSetValid(List<Card> cardsToTrade) {
+        long wildCount = cardsToTrade.stream().filter(c -> c.getType() == CardType.WILD).count();
+        
+        List<CardType> nonWilds = cardsToTrade.stream()
+            .map(Card::getType)
+            .filter(t -> t != CardType.WILD)
+            .collect(Collectors.toList());
+
+        if (nonWilds.size() == 3 && nonWilds.stream().distinct().count() == 1) {
+            return true; 
+        }
+        
+        if (nonWilds.size() == 3 && nonWilds.stream().distinct().count() == 3) {
+            return true; 
+        }
+        
+        if (wildCount > 0) {
+            if (wildCount == 1) {
+                if (nonWilds.stream().distinct().count() == 1) return true;
+                if (nonWilds.stream().distinct().count() == 2) return true; 
+            }
+            
+            if (wildCount == 2) return true;
+
+            if (wildCount == 3) return true;
+        }
+        
+        return false;
+    }
+
+    private int calculateTerritoryMatchBonus(Game game, PlayerGame playerGame, List<Card> cardsToTrade) {
+        int bonus = 0;
+        
+        // Buscar todos os GameTerritories que o jogador possui nesta partida
+        List<GameTerritory> ownedGameTerritories = gameTerritoryRepository.findByGameAndOwner(game, playerGame);
+
+        Map<Long, GameTerritory> ownedTerritoriesMap = ownedGameTerritories.stream()
+            .collect(Collectors.toMap(
+                gt -> gt.getTerritory().getId(),
+                gt -> gt
+            ));
+
+        // Verificar o bônus de correspondência de território
+        for (Card card : cardsToTrade) {
+            if (card.getTerritory() != null) {
+                Long territoryMasterId = card.getTerritory().getId();
+                
+                if (ownedTerritoriesMap.containsKey(territoryMasterId)) {
+                    GameTerritory gt = ownedTerritoriesMap.get(territoryMasterId);
+                    gt.setArmies(gt.getArmies() + 2);
+                    gameTerritoryRepository.save(gt);
+                    bonus += 2; 
+                }
+            }
+        }
+        return bonus;
+    }
+
+    private void drawCard(PlayerGame playerGame) {
+        // Encontrar a próxima carta disponível no baralho.
+        Card cardToDraw = cardRepository.findRandomUnownedCard()
+            .orElseThrow(() -> new RuntimeException("Baralho de cartas vazio. Não foi possível comprar carta."));
+
+        // Criar a posse da carta
+        PlayerCard playerCard = new PlayerCard();
+        playerCard.setPlayerGame(playerGame);
+        playerCard.setCard(cardToDraw);
+
+        playerCardRepository.save(playerCard);
+
+        System.out.println("Jogador " + playerGame.getPlayer().getUsername() + " comprou a carta: " + cardToDraw.getType());
+    }
+
+    private List<Integer> simulateDiceRolls(int count) {
+        List<Integer> rolls = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            rolls.add(random.nextInt(6) + 1);
+        }
+        Collections.sort(rolls, Collections.reverseOrder());
+        return rolls;
+    }
+
+    private int[] resolveCombat(List<Integer> attackRolls, List<Integer> defenseRolls) {
+        int attackerLosses = 0;
+        int defenderLosses = 0;
+        
+        int comparisons = Math.min(attackRolls.size(), defenseRolls.size());
+        
+        for (int i = 0; i < comparisons; i++) {
+            int attackValue = attackRolls.get(i);
+            int defenseValue = defenseRolls.get(i);
+            
+            if (attackValue > defenseValue) {
+                // Atacante vence o confronto
+                defenderLosses++;
+            } else {
+                // Defensor vence ou empata (empate é sempre do defensor)
+                attackerLosses++;
+            }
+        }
+        
+        return new int[]{attackerLosses, defenderLosses};
     }
 }

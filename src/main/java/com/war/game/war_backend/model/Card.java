@@ -17,10 +17,16 @@ public class Card {
   @Column(name = "pk_id")
   private Long id;
 
-  @Column(nullable = false, length = 20)
-  private String type;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "type", nullable = false, length = 20)
+  private CardType type;
 
   @ManyToOne
   @JoinColumn(name = "territory_id", referencedColumnName = "pk_id")
   private Territory territory;
+  
+  @Transient
+  public String getTerritoryName() {
+    return territory != null ? territory.getName() : null;
+  }
 }
