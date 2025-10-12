@@ -1,5 +1,6 @@
 package com.war.game.war_backend.controller;
 
+import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
 import com.war.game.war_backend.controller.dto.request.LobbyCreationRequestDto;
 import com.war.game.war_backend.controller.dto.response.LobbyCreationResponseDto;
 import com.war.game.war_backend.controller.dto.response.LobbyListResponseDto;
@@ -24,6 +25,8 @@ import java.security.Principal;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
 
 @RestController
@@ -176,6 +179,67 @@ public class GameController {
 
             return ResponseEntity.ok(updatedGame);
 
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{gameId}/trade-cards")
+    @Operation(
+        summary = "Troca um conjunto de 3 cartas por tropas de reforço.", 
+        description = "Pode ser chamado múltiplas vezes na fase de Reinforcement, desde que o jogador tenha pelo menos 3 cartas na mão."
+    )
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> tradeCards(
+        @Parameter(description = "ID da partida.") 
+        @PathVariable Long gameId, 
+        
+        @RequestBody(
+            description = "Lista de IDs das entidades PlayerCard (posse) que o jogador deseja trocar. Deve conter exatamente 3 IDs.",
+            required = true,
+            content = @Content(
+                schema = @Schema(implementation = List.class, type = "array", example = "[101, 102, 103]")
+            )
+        )
+        @org.springframework.web.bind.annotation.RequestBody List<Long> playerCardIds,
+        Principal principal
+    ) {
+        String username = principal.getName();
+        
+        try {
+            Game updatedGame = gameService.tradeCardsForReinforcements(gameId, username, playerCardIds);
+
+            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", updatedGame);
+            return ResponseEntity.ok(updatedGame);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{gameId}/attack")
+    @Operation(summary = "Inicia um ataque entre dois territórios.", 
+            description = "Realiza a rolagem de dados, aplica perdas e, se o território for conquistado, realiza a mudança de posse e movimentação de tropas.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> attackTerritory(
+            @Parameter(description = "ID da partida.") @PathVariable Long gameId, 
+            @RequestBody(
+                description = "Detalhes do ataque: ID dos territórios e número de dados (1 a 3).",
+                required = true,
+                content = @Content(schema = @Schema(implementation = AttackRequestDto.class))
+            )
+            @org.springframework.web.bind.annotation.RequestBody AttackRequestDto attackRequest,
+            Principal principal) {
+        
+        String username = principal.getName();
+        
+        try {
+            Game updatedGame = gameService.attackTerritory(gameId, username, attackRequest);
+            
+            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", updatedGame);
+            return ResponseEntity.ok(updatedGame);
+            
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

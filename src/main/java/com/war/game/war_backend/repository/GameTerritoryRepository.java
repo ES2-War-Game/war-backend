@@ -15,4 +15,5 @@ public interface GameTerritoryRepository extends JpaRepository<GameTerritory, Lo
     List<GameTerritory> findByGameAndOwner(Game game, PlayerGame playerGame);
     Optional<GameTerritory> findByGameAndTerritoryId(Game game, Long territoryId);
     List<GameTerritory> findByGame(Game game);
+    long countByOwner(PlayerGame owner); // Conta quantos GameTerritories pertencem a um PlayerGame específico (Para gameover).
 }
