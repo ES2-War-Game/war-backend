@@ -16,6 +16,19 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis-war
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --notify-keyspace-events Ex
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   app:
     build: 
       context: .
@@ -25,6 +38,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ~/.m2:/root/.m2
     environment:
@@ -33,6 +48,8 @@ services:
       SPRING_DATASOURCE_PASSWORD: wargame
       SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
       SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     
 volumes:
   db-data:

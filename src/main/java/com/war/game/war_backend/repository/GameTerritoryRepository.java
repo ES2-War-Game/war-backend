@@ -1,13 +1,14 @@
 package com.war.game.war_backend.repository;
 
-import com.war.game.war_backend.model.Game;
-import com.war.game.war_backend.model.GameTerritory;
-import com.war.game.war_backend.model.PlayerGame;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
-import java.util.Optional;
+import com.war.game.war_backend.model.Game;
+import com.war.game.war_backend.model.GameTerritory;
+import com.war.game.war_backend.model.PlayerGame;
 
 @Repository
 public interface GameTerritoryRepository extends JpaRepository<GameTerritory, Long> {
@@ -15,5 +16,8 @@ public interface GameTerritoryRepository extends JpaRepository<GameTerritory, Lo
     List<GameTerritory> findByGameAndOwner(Game game, PlayerGame playerGame);
     Optional<GameTerritory> findByGameAndTerritoryId(Game game, Long territoryId);
     List<GameTerritory> findByGame(Game game);
-    long countByOwner(PlayerGame owner); // Conta quantos GameTerritories pertencem a um PlayerGame específico (Para gameover).
+    long countByOwner(PlayerGame owner);
+    
+    Optional<GameTerritory> findByGame_IdAndTerritory_Id(Long gameId, Long territoryId);
+    Optional<GameTerritory> findByGame_IdAndTerritory_IdAndOwner_Player_Id(Long gameId, Long territoryId, Long playerId);
 }
