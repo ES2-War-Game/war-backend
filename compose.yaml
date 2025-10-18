@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
-    command: redis-server --requirepass redis --notify-keyspace-events Ex --user default on >redis ~* +@all
+    command: redis-server --requirepass redis --notify-keyspace-events Ex
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "redis", "ping"]
       interval: 5s

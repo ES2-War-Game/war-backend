@@ -16,22 +16,18 @@ import com.war.game.war_backend.model.Movement;
 @Configuration
 public class RedisConfig {
 
-    @Value("${spring.redis.host:localhost}")
+    @Value("${spring.data.redis.host:localhost}")
     private String redisHost;
 
-    @Value("${spring.redis.port:6379}")
+    @Value("${spring.data.redis.port:6379}")
     private int redisPort;
 
-    @Value("${spring.redis.username:default}")
-    private String redisUsername;
-
-    @Value("${spring.redis.password:redis}")
+    @Value("${spring.data.redis.password:redis}")
     private String redisPassword;
 
     @Bean
     public LettuceConnectionFactory redisConnectionFactory() {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(redisHost, redisPort);
-        config.setUsername(redisUsername);
         config.setPassword(redisPassword);
         return new LettuceConnectionFactory(config);
     }
