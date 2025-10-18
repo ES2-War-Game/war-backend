@@ -9,8 +9,17 @@ COPY mvnw.cmd .
 COPY pom.xml .
 COPY .mvn .mvn
 
-# Download dependencies
-RUN ./mvnw dependency:go-offline -B
+# Make the Maven wrapper executable and download dependencies with retries
+RUN chmod +x ./mvnw && \
+    for i in 1 2 3; do \
+        ./mvnw dependency:resolve -B && break || \
+        if [ $i -lt 3 ]; then \
+            echo "Retry $i/3..." && \
+            sleep 5; \
+        else \
+            exit 1; \
+        fi \
+    done
 
 # Copy source code
 COPY src src
