@@ -1,6 +1,5 @@
 package com.war.game.war_backend.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,7 +12,6 @@ import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import com.war.game.war_backend.model.Movement;
-import com.war.game.war_backend.services.MovementService;
 
 @Configuration
 public class RedisConfig {
@@ -24,9 +22,17 @@ public class RedisConfig {
     @Value("${spring.redis.port:6379}")
     private int redisPort;
 
+    @Value("${spring.redis.username:default}")
+    private String redisUsername;
+
+    @Value("${spring.redis.password:redis}")
+    private String redisPassword;
+
     @Bean
     public LettuceConnectionFactory redisConnectionFactory() {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(redisHost, redisPort);
+        config.setUsername(redisUsername);
+        config.setPassword(redisPassword);
         return new LettuceConnectionFactory(config);
     }
 
@@ -41,21 +47,14 @@ public class RedisConfig {
         return template;
     }
 
-    @Autowired
-    private MovementService movementService;
-
     @Bean
-    public RedisMessageListenerContainer redisContainer(LettuceConnectionFactory connectionFactory) {
+    public RedisMessageListenerContainer redisContainer(
+            LettuceConnectionFactory connectionFactory,
+            MovementExpirationListener movementExpirationListener) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
         container.addMessageListener(
-            (message, pattern) -> {
-                String expiredKey = new String(message.getBody());
-                if (expiredKey.startsWith("movement:")) {
-                    String movementId = expiredKey.substring("movement:".length());
-                    movementService.completeMovement(movementId);
-                }
-            },
+            movementExpirationListener,
             new PatternTopic("__keyevent@*__:expired")
         );
         return container;
