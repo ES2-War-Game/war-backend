@@ -65,6 +65,9 @@ public class Game {
   private Set<GameTerritory> gameTerritories;
 
   public List<Player> getPlayers() {
+    if (this.playerGames == null) {
+      return List.of();
+    }
     return this.playerGames.stream()
         .map(PlayerGame::getPlayer)
         .collect(Collectors.toList());

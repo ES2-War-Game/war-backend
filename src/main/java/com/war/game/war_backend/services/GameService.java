@@ -746,4 +746,9 @@ public class GameService {
         
         return new int[]{attackerLosses, defenderLosses};
     }
+
+    public Game findGameById(Long gameId) {
+        return gameRepository.findById(gameId)
+            .orElseThrow(() -> new RuntimeException("Partida com ID " + gameId + " não encontrada."));
+    }
 }
