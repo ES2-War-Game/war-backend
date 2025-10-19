@@ -1,5 +1,6 @@
 package com.war.game.war_backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -25,6 +26,7 @@ public class PlayerGame {
 
   @ManyToOne
   @JoinColumn(name = "game_id", referencedColumnName = "pk_id")
+  @JsonIgnore
   private Game game;
 
   @Column(nullable = true, length = 20)
