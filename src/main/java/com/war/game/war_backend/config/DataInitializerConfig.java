@@ -54,8 +54,10 @@ public class DataInitializerConfig {
 
                 // Create a new game for testing
                 Game game = new Game();
+                game.setName("Test Game");
                 game.setStatus("ACTIVE");
                 game.setCreatedAt(LocalDateTime.now());
+                game.setCardSetExchangeCount(0);
                 game = gameRepository.save(game);
 
                 // Create PlayerGame entry
