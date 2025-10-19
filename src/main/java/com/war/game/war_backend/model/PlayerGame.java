@@ -51,4 +51,10 @@ public class PlayerGame {
 
   @Column(name = "unallocated_armies")
   private Integer unallocatedArmies;
+
+  @Column(name = "conquered_territory_this_turn", nullable = false)
+  private Boolean conqueredTerritoryThisTurn = false;
+
+  @Column(name = "still_in_game", nullable = false)
+  private Boolean stillInGame = true;
 }

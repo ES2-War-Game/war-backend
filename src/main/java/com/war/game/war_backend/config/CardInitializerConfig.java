@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 
 import com.war.game.war_backend.model.Card;
+import com.war.game.war_backend.model.CardType;
 import com.war.game.war_backend.model.Territory;
 import com.war.game.war_backend.repository.CardRepository;
 import com.war.game.war_backend.repository.TerritoryRepository;
@@ -40,7 +41,7 @@ public class CardInitializerConfig {
       }
 
       // Arrays dos tipos de cartas para distribuição equilibrada
-      String[] cardTypes = {"cannon", "infantry", "cavalry"};
+      CardType[] cardTypes = {CardType.CANNON, CardType.INFANTRY, CardType.CAVALRY};
       int currentTypeIndex = 0;
 
       System.out.println("=== CardInitializer: Criando cartas para territórios ===");
@@ -62,13 +63,13 @@ public class CardInitializerConfig {
 
       // Criar 2 cartas curinga (wild cards)
       Card wildCard1 = new Card();
-      wildCard1.setType("wild");
+      wildCard1.setType(CardType.WILD);
       wildCard1.setTerritory(null); // Curingas não têm território específico
       cardRepository.save(wildCard1);
       System.out.println("Carta curinga 1 criada");
 
       Card wildCard2 = new Card();
-      wildCard2.setType("wild");
+      wildCard2.setType(CardType.WILD);
       wildCard2.setTerritory(null); // Curingas não têm território específico
       cardRepository.save(wildCard2);
       System.out.println("Carta curinga 2 criada");

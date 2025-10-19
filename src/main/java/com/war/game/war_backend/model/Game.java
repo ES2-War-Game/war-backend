@@ -40,6 +40,9 @@ public class Game {
   @Column(name = "created_at", nullable = false)
   private LocalDateTime createdAt;
 
+  @Column(name = "card_set_exchange_count", nullable = false)
+  private Integer cardSetExchangeCount = 0;
+
   // Relacionamento com PlayerGame
   @OneToMany(mappedBy = "game")
   private Set<PlayerGame> playerGames;
