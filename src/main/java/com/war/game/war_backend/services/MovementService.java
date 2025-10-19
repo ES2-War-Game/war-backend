@@ -43,18 +43,18 @@ public class MovementService {
 
     @Transactional
     public Movement createMovement(MovementRequestDto request, Player currentPlayer) {
-        // Validate player is in game
+        // Validate player is in game and get player game instance
         PlayerGame playerGame = playerGameRepository.findByGame_IdAndPlayer_Id(request.getGameId(), currentPlayer.getId())
             .orElseThrow(() -> new IllegalStateException("Player not in game"));
 
-        // Validate origin territory belongs to player
+        // Validate origin territory belongs to player's game
         GameTerritory originTerritory = gameTerritoryRepository
-            .findByGame_IdAndTerritory_IdAndOwner_Player_Id(request.getGameId(), request.getOriginTerritoryId(), currentPlayer.getId())
+            .findByGame_IdAndTerritory_IdAndOwner(request.getGameId(), request.getOriginTerritoryId(), playerGame)
             .orElseThrow(() -> new IllegalStateException("Territory does not belong to player"));
 
         // Validate territories are adjacent
         boolean areAdjacent = territoryBorderRepository
-            .existsByTerritoryIdAndBorderTerritoryId(request.getOriginTerritoryId(), request.getDestinationTerritoryId());
+            .areTerritoryBordering(request.getOriginTerritoryId(), request.getDestinationTerritoryId());
         if (!areAdjacent) {
             throw new IllegalStateException("Territories are not adjacent");
         }

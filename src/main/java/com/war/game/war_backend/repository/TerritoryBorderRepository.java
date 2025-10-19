@@ -20,5 +20,5 @@ public interface TerritoryBorderRepository extends JpaRepository<TerritoryBorder
     @Query("SELECT CASE WHEN COUNT(tb) > 0 THEN true ELSE false END FROM TerritoryBorder tb WHERE " +
            "(tb.territoryA.id = :territoryAId AND tb.territoryB.id = :territoryBId) OR " +
            "(tb.territoryA.id = :territoryBId AND tb.territoryB.id = :territoryAId)")
-    boolean existsByTerritoryIdAndBorderTerritoryId(Long territoryAId, Long territoryBId);
+    boolean areTerritoryBordering(Long territoryAId, Long territoryBId);
 }
