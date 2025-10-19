@@ -79,6 +79,7 @@ CREATE TABLE player_game (
     objective_id BIGINT NULL,
     conquered_territory_this_turn BOOLEAN NOT NULL DEFAULT FALSE,
     still_in_game BOOLEAN NOT NULL DEFAULT TRUE,
+    unallocated_armies INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT fk_player FOREIGN KEY (player_id) REFERENCES player(pk_id),
     CONSTRAINT fk_game FOREIGN KEY (game_id) REFERENCES game(pk_id),
     CONSTRAINT fk_objective FOREIGN KEY (objective_id) REFERENCES objective(pk_id)

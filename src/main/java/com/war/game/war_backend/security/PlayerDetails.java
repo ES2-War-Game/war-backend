@@ -59,7 +59,6 @@ public class PlayerDetails implements UserDetails {
   }
 
   public Long getId() {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'getId'");
+    return player.getId();
   }
 }

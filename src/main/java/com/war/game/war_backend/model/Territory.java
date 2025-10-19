@@ -5,15 +5,18 @@ import java.util.Set;
 import java.util.HashSet;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
 @Entity
 @Table(name = "territory")
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"bordersA", "bordersB"})
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(of = "id")
 public class Territory {
 
   @Id

@@ -4,15 +4,18 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
 @Entity
 @Table(name = "territory_border")
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"territoryA", "territoryB"})
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(of = "id")
 public class TerritoryBorder {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)

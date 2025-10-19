@@ -1,11 +1,19 @@
 package com.war.game.war_backend.model;
 
-import jakarta.persistence.*;
+import java.util.Set;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-
-import java.util.Set;
 
 @Entity
 @Table(name = "player_game")
@@ -49,8 +57,8 @@ public class PlayerGame {
   @OneToMany(mappedBy = "owner")
   private Set<GameTerritory> ownedTerritories;
 
-  @Column(name = "unallocated_armies")
-  private Integer unallocatedArmies;
+  @Column(name = "unallocated_armies", nullable = false)
+  private Integer unallocatedArmies = 0;
 
   @Column(name = "conquered_territory_this_turn", nullable = false)
   private Boolean conqueredTerritoryThisTurn = false;
