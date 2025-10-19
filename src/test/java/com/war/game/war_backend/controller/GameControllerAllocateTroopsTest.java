@@ -29,179 +29,179 @@ import java.security.Principal;
 @ExtendWith(MockitoExtension.class)
 class GameControllerAllocateTroopsTest {
 
-    @Mock
-    private GameService gameService;
+  @Mock
+  private GameService gameService;
 
-    @Mock
-    private SimpMessagingTemplate messagingTemplate;
+  @Mock
+  private SimpMessagingTemplate messagingTemplate;
 
-    @Mock
-    private Principal principal;
+  @Mock
+  private Principal principal;
 
-    @InjectMocks
-    private GameController gameController;
+  @InjectMocks
+  private GameController gameController;
 
-    private MockMvc mockMvc;
-    private ObjectMapper objectMapper;
+  private MockMvc mockMvc;
+  private ObjectMapper objectMapper;
 
-    @BeforeEach
-    void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(gameController)
-                .setControllerAdvice() // Adiciona suporte para @ControllerAdvice
-                .build();
-        objectMapper = new ObjectMapper();
-    }
+  @BeforeEach
+  void setUp() {
+    mockMvc = MockMvcBuilders.standaloneSetup(gameController)
+        .setControllerAdvice() // Adiciona suporte para @ControllerAdvice
+        .build();
+    objectMapper = new ObjectMapper();
+  }
 
-    @Test
-    void allocateTroops_Success_ShouldReturnUpdatedGame() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        Long territoryId = 5L;
-        Integer count = 3;
-        String username = "testuser";
-        
-        Game mockGame = new Game();
-        mockGame.setId(gameId);
-        mockGame.setName("Test Game");
-        mockGame.setStatus("In Game - Initial Allocation");
-        mockGame.setPlayerGames(new java.util.HashSet<>()); // Inicializar coleções para evitar NPE
-        mockGame.setGameTerritories(new java.util.HashSet<>());
+  @Test
+  void allocateTroops_Success_ShouldReturnUpdatedGame() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    Long territoryId = 5L;
+    Integer count = 3;
+    String username = "testuser";
 
-        when(principal.getName()).thenReturn(username);
-        when(gameService.allocateTroops(gameId, username, territoryId, count)).thenReturn(mockGame);
+    Game mockGame = new Game();
+    mockGame.setId(gameId);
+    mockGame.setName("Test Game");
+    mockGame.setStatus("In Game - Initial Allocation");
+    mockGame.setPlayerGames(new java.util.HashSet<>()); // Inicializar coleções para evitar NPE
+    mockGame.setGameTerritories(new java.util.HashSet<>());
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
-                .param("territoryId", territoryId.toString())
-                .param("count", count.toString())
-                .principal(principal)
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(gameId))
-                .andExpect(jsonPath("$.name").value("Test Game"))
-                .andExpect(jsonPath("$.status").value("In Game - Initial Allocation"));
+    when(principal.getName()).thenReturn(username);
+    when(gameService.allocateTroops(gameId, username, territoryId, count)).thenReturn(mockGame);
 
-        // Verify interactions
-        verify(gameService, times(1)).allocateTroops(gameId, username, territoryId, count);
-        verify(messagingTemplate, times(1)).convertAndSend("/topic/game/" + gameId + "/state", mockGame);
-    }
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
+        .param("territoryId", territoryId.toString())
+        .param("count", count.toString())
+        .principal(principal)
+        .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(gameId))
+        .andExpect(jsonPath("$.name").value("Test Game"))
+        .andExpect(jsonPath("$.status").value("In Game - Initial Allocation"));
 
-    @Test
-    void allocateTroops_InvalidInput_ShouldReturnBadRequest() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        Long territoryId = 5L;
-        Integer count = 3;
-        String username = "testuser";
-        String errorMessage = "Tropas insuficientes na reserva";
+    // Verify interactions
+    verify(gameService, times(1)).allocateTroops(gameId, username, territoryId, count);
+    verify(messagingTemplate, times(1)).convertAndSend("/topic/game/" + gameId + "/state", mockGame);
+  }
 
-        when(principal.getName()).thenReturn(username);
-        when(gameService.allocateTroops(gameId, username, territoryId, count))
-            .thenThrow(new RuntimeException(errorMessage));
+  @Test
+  void allocateTroops_InvalidInput_ShouldReturnBadRequest() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    Long territoryId = 5L;
+    Integer count = 3;
+    String username = "testuser";
+    String errorMessage = "Tropas insuficientes na reserva";
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
-                .param("territoryId", territoryId.toString())
-                .param("count", count.toString())
-                .principal(principal)
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string(errorMessage));
+    when(principal.getName()).thenReturn(username);
+    when(gameService.allocateTroops(gameId, username, territoryId, count))
+        .thenThrow(new RuntimeException(errorMessage));
 
-        // Verify interactions
-        verify(gameService, times(1)).allocateTroops(gameId, username, territoryId, count);
-        verify(messagingTemplate, times(0)).convertAndSend(any(String.class), any(Object.class));
-    }
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
+        .param("territoryId", territoryId.toString())
+        .param("count", count.toString())
+        .principal(principal)
+        .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().string(errorMessage));
 
-    @Test
-    void allocateTroops_NegativeCount_ShouldReturnBadRequest() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        Long territoryId = 5L;
-        Integer count = -1;
-        String username = "testuser";
-        String errorMessage = "Número de tropas deve ser positivo";
+    // Verify interactions
+    verify(gameService, times(1)).allocateTroops(gameId, username, territoryId, count);
+    verify(messagingTemplate, times(0)).convertAndSend(any(String.class), any(Object.class));
+  }
 
-        when(principal.getName()).thenReturn(username);
-        when(gameService.allocateTroops(gameId, username, territoryId, count))
-            .thenThrow(new RuntimeException(errorMessage));
+  @Test
+  void allocateTroops_NegativeCount_ShouldReturnBadRequest() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    Long territoryId = 5L;
+    Integer count = -1;
+    String username = "testuser";
+    String errorMessage = "Número de tropas deve ser positivo";
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
-                .param("territoryId", territoryId.toString())
-                .param("count", count.toString())
-                .principal(principal)
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string(errorMessage));
-    }
+    when(principal.getName()).thenReturn(username);
+    when(gameService.allocateTroops(gameId, username, territoryId, count))
+        .thenThrow(new RuntimeException(errorMessage));
 
-    @Test
-    void allocateTroops_GameNotFound_ShouldReturnBadRequest() throws Exception {
-        // Arrange
-        Long gameId = 999L;
-        Long territoryId = 5L;
-        Integer count = 3;
-        String username = "testuser";
-        String errorMessage = "Jogo não encontrado";
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
+        .param("territoryId", territoryId.toString())
+        .param("count", count.toString())
+        .principal(principal)
+        .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().string(errorMessage));
+  }
 
-        when(principal.getName()).thenReturn(username);
-        when(gameService.allocateTroops(gameId, username, territoryId, count))
-            .thenThrow(new RuntimeException(errorMessage));
+  @Test
+  void allocateTroops_GameNotFound_ShouldReturnBadRequest() throws Exception {
+    // Arrange
+    Long gameId = 999L;
+    Long territoryId = 5L;
+    Integer count = 3;
+    String username = "testuser";
+    String errorMessage = "Jogo não encontrado";
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
-                .param("territoryId", territoryId.toString())
-                .param("count", count.toString())
-                .principal(principal)
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string(errorMessage));
-    }
+    when(principal.getName()).thenReturn(username);
+    when(gameService.allocateTroops(gameId, username, territoryId, count))
+        .thenThrow(new RuntimeException(errorMessage));
 
-    @Test
-    void allocateTroops_TerritoryNotOwned_ShouldReturnBadRequest() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        Long territoryId = 5L;
-        Integer count = 3;
-        String username = "testuser";
-        String errorMessage = "Território não pertence ao jogador";
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
+        .param("territoryId", territoryId.toString())
+        .param("count", count.toString())
+        .principal(principal)
+        .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().string(errorMessage));
+  }
 
-        when(principal.getName()).thenReturn(username);
-        when(gameService.allocateTroops(gameId, username, territoryId, count))
-            .thenThrow(new RuntimeException(errorMessage));
+  @Test
+  void allocateTroops_TerritoryNotOwned_ShouldReturnBadRequest() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    Long territoryId = 5L;
+    Integer count = 3;
+    String username = "testuser";
+    String errorMessage = "Território não pertence ao jogador";
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
-                .param("territoryId", territoryId.toString())
-                .param("count", count.toString())
-                .principal(principal)
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string(errorMessage));
-    }
+    when(principal.getName()).thenReturn(username);
+    when(gameService.allocateTroops(gameId, username, territoryId, count))
+        .thenThrow(new RuntimeException(errorMessage));
 
-    @Test
-    void allocateTroops_NotPlayerTurn_ShouldReturnBadRequest() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        Long territoryId = 5L;
-        Integer count = 3;
-        String username = "testuser";
-        String errorMessage = "Não é o turno do jogador";
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
+        .param("territoryId", territoryId.toString())
+        .param("count", count.toString())
+        .principal(principal)
+        .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().string(errorMessage));
+  }
 
-        when(principal.getName()).thenReturn(username);
-        when(gameService.allocateTroops(gameId, username, territoryId, count))
-            .thenThrow(new RuntimeException(errorMessage));
+  @Test
+  void allocateTroops_NotPlayerTurn_ShouldReturnBadRequest() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    Long territoryId = 5L;
+    Integer count = 3;
+    String username = "testuser";
+    String errorMessage = "Não é o turno do jogador";
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
-                .param("territoryId", territoryId.toString())
-                .param("count", count.toString())
-                .principal(principal)
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string(errorMessage));
-    }
+    when(principal.getName()).thenReturn(username);
+    when(gameService.allocateTroops(gameId, username, territoryId, count))
+        .thenThrow(new RuntimeException(errorMessage));
+
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
+        .param("territoryId", territoryId.toString())
+        .param("count", count.toString())
+        .principal(principal)
+        .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().string(errorMessage));
+  }
 }

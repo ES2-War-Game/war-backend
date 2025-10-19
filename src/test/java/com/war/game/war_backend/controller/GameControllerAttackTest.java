@@ -32,212 +32,213 @@ import com.war.game.war_backend.services.PlayerService;
 
 class GameControllerAttackTest {
 
-    private MockMvc mockMvc;
+  private MockMvc mockMvc;
 
-    @Mock
-    private GameService gameService;
+  @Mock
+  private GameService gameService;
 
-    @Mock
-    private PlayerService playerService;
+  @Mock
+  private PlayerService playerService;
 
-    @Mock
-    private SimpMessagingTemplate messagingTemplate;
+  @Mock
+  private SimpMessagingTemplate messagingTemplate;
 
-    @Mock
-    private Principal principal;
+  @Mock
+  private Principal principal;
 
-    @InjectMocks
-    private GameController gameController;
+  @InjectMocks
+  private GameController gameController;
 
-    private ObjectMapper objectMapper;
+  private ObjectMapper objectMapper;
 
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
-        mockMvc = MockMvcBuilders.standaloneSetup(gameController)
-                .setControllerAdvice()
-                .build();
-        objectMapper = new ObjectMapper();
-        
-        when(principal.getName()).thenReturn("testuser");
-    }
+  @BeforeEach
+  void setUp() {
+    MockitoAnnotations.openMocks(this);
+    mockMvc = MockMvcBuilders.standaloneSetup(gameController)
+        .setControllerAdvice()
+        .build();
+    objectMapper = new ObjectMapper();
 
-    @Test
-    void attackTerritory_WithValidData_ShouldReturnSuccess() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        AttackRequestDto attackRequest = new AttackRequestDto();
-        attackRequest.setSourceTerritoryId(10L);
-        attackRequest.setTargetTerritoryId(11L);
-        attackRequest.setAttackDiceCount(3);
-        attackRequest.setTroopsToMoveAfterConquest(3);
+    when(principal.getName()).thenReturn("testuser");
+  }
 
-        Game mockGame = new Game();
-        mockGame.setId(gameId);
-        mockGame.setName("Test Game");
-        mockGame.setStatus("In Game - Attack");
-        mockGame.setCreatedAt(LocalDateTime.now());
-        mockGame.setCardSetExchangeCount(0);
-        mockGame.setPlayerGames(new HashSet<>());
-        mockGame.setGameTerritories(new HashSet<>());
+  @Test
+  void attackTerritory_WithValidData_ShouldReturnSuccess() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    AttackRequestDto attackRequest = new AttackRequestDto();
+    attackRequest.setSourceTerritoryId(10L);
+    attackRequest.setTargetTerritoryId(11L);
+    attackRequest.setAttackDiceCount(3);
+    attackRequest.setTroopsToMoveAfterConquest(3);
 
-        when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
-                .thenReturn(mockGame);
+    Game mockGame = new Game();
+    mockGame.setId(gameId);
+    mockGame.setName("Test Game");
+    mockGame.setStatus("In Game - Attack");
+    mockGame.setCreatedAt(LocalDateTime.now());
+    mockGame.setCardSetExchangeCount(0);
+    mockGame.setPlayerGames(new HashSet<>());
+    mockGame.setGameTerritories(new HashSet<>());
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(attackRequest))
-                .principal(principal))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(gameId))
-                .andExpect(jsonPath("$.status").value("In Game - Attack"));
-    }
+    when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
+        .thenReturn(mockGame);
 
-    @Test
-    void attackTerritory_WithInvalidGamePhase_ShouldReturnBadRequest() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        AttackRequestDto attackRequest = new AttackRequestDto();
-        attackRequest.setSourceTerritoryId(10L);
-        attackRequest.setTargetTerritoryId(11L);
-        attackRequest.setAttackDiceCount(3);
-        attackRequest.setTroopsToMoveAfterConquest(3);
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(attackRequest))
+        .principal(principal))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(gameId))
+        .andExpect(jsonPath("$.status").value("In Game - Attack"));
+  }
 
-        when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
-                .thenThrow(new RuntimeException("Ação inválida. A partida não está na fase de Ataque."));
+  @Test
+  void attackTerritory_WithInvalidGamePhase_ShouldReturnBadRequest() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    AttackRequestDto attackRequest = new AttackRequestDto();
+    attackRequest.setSourceTerritoryId(10L);
+    attackRequest.setTargetTerritoryId(11L);
+    attackRequest.setAttackDiceCount(3);
+    attackRequest.setTroopsToMoveAfterConquest(3);
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(attackRequest))
-                .principal(principal))
-                .andExpect(status().isBadRequest());
-    }
+    when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
+        .thenThrow(new RuntimeException("Ação inválida. A partida não está na fase de Ataque."));
 
-    @Test
-    void attackTerritory_WithNotPlayerTurn_ShouldReturnBadRequest() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        AttackRequestDto attackRequest = new AttackRequestDto();
-        attackRequest.setSourceTerritoryId(10L);
-        attackRequest.setTargetTerritoryId(11L);
-        attackRequest.setAttackDiceCount(3);
-        attackRequest.setTroopsToMoveAfterConquest(3);
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(attackRequest))
+        .principal(principal))
+        .andExpect(status().isBadRequest());
+  }
 
-        when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
-                .thenThrow(new RuntimeException("Não é o seu turno para atacar."));
+  @Test
+  void attackTerritory_WithNotPlayerTurn_ShouldReturnBadRequest() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    AttackRequestDto attackRequest = new AttackRequestDto();
+    attackRequest.setSourceTerritoryId(10L);
+    attackRequest.setTargetTerritoryId(11L);
+    attackRequest.setAttackDiceCount(3);
+    attackRequest.setTroopsToMoveAfterConquest(3);
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(attackRequest))
-                .principal(principal))
-                .andExpect(status().isBadRequest());
-    }
+    when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
+        .thenThrow(new RuntimeException("Não é o seu turno para atacar."));
 
-    @Test
-    void attackTerritory_WithNonAdjacentTerritories_ShouldReturnBadRequest() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        AttackRequestDto attackRequest = new AttackRequestDto();
-        attackRequest.setSourceTerritoryId(10L);
-        attackRequest.setTargetTerritoryId(11L);
-        attackRequest.setAttackDiceCount(3);
-        attackRequest.setTroopsToMoveAfterConquest(3);
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(attackRequest))
+        .principal(principal))
+        .andExpect(status().isBadRequest());
+  }
 
-        when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
-                .thenThrow(new RuntimeException("O território BRASIL não é vizinho do território atacante."));
+  @Test
+  void attackTerritory_WithNonAdjacentTerritories_ShouldReturnBadRequest() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    AttackRequestDto attackRequest = new AttackRequestDto();
+    attackRequest.setSourceTerritoryId(10L);
+    attackRequest.setTargetTerritoryId(11L);
+    attackRequest.setAttackDiceCount(3);
+    attackRequest.setTroopsToMoveAfterConquest(3);
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(attackRequest))
-                .principal(principal))
-                .andExpect(status().isBadRequest());
-    }
+    when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
+        .thenThrow(new RuntimeException("O território BRASIL não é vizinho do território atacante."));
 
-    @Test
-    void attackTerritory_WithAttackingOwnTerritory_ShouldReturnBadRequest() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        AttackRequestDto attackRequest = new AttackRequestDto();
-        attackRequest.setSourceTerritoryId(10L);
-        attackRequest.setTargetTerritoryId(11L);
-        attackRequest.setAttackDiceCount(3);
-        attackRequest.setTroopsToMoveAfterConquest(3);
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(attackRequest))
+        .principal(principal))
+        .andExpect(status().isBadRequest());
+  }
 
-        when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
-                .thenThrow(new RuntimeException("Você não pode atacar seu próprio território."));
+  @Test
+  void attackTerritory_WithAttackingOwnTerritory_ShouldReturnBadRequest() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    AttackRequestDto attackRequest = new AttackRequestDto();
+    attackRequest.setSourceTerritoryId(10L);
+    attackRequest.setTargetTerritoryId(11L);
+    attackRequest.setAttackDiceCount(3);
+    attackRequest.setTroopsToMoveAfterConquest(3);
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(attackRequest))
-                .principal(principal))
-                .andExpect(status().isBadRequest());
-    }
+    when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
+        .thenThrow(new RuntimeException("Você não pode atacar seu próprio território."));
 
-    @Test
-    void attackTerritory_WithInsufficientArmies_ShouldReturnBadRequest() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        AttackRequestDto attackRequest = new AttackRequestDto();
-        attackRequest.setSourceTerritoryId(10L);
-        attackRequest.setTargetTerritoryId(11L);
-        attackRequest.setAttackDiceCount(3);
-        attackRequest.setTroopsToMoveAfterConquest(3);
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(attackRequest))
+        .principal(principal))
+        .andExpect(status().isBadRequest());
+  }
 
-        when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
-                .thenThrow(new RuntimeException("Você deve deixar pelo menos um exército no território atacante. Máximo de dados de ataque permitido: 2"));
+  @Test
+  void attackTerritory_WithInsufficientArmies_ShouldReturnBadRequest() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    AttackRequestDto attackRequest = new AttackRequestDto();
+    attackRequest.setSourceTerritoryId(10L);
+    attackRequest.setTargetTerritoryId(11L);
+    attackRequest.setAttackDiceCount(3);
+    attackRequest.setTroopsToMoveAfterConquest(3);
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(attackRequest))
-                .principal(principal))
-                .andExpect(status().isBadRequest());
-    }
+    when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
+        .thenThrow(new RuntimeException(
+            "Você deve deixar pelo menos um exército no território atacante. Máximo de dados de ataque permitido: 2"));
 
-    @Test
-    void attackTerritory_WithInvalidTroopsMovement_ShouldReturnBadRequest() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        AttackRequestDto attackRequest = new AttackRequestDto();
-        attackRequest.setSourceTerritoryId(10L);
-        attackRequest.setTargetTerritoryId(11L);
-        attackRequest.setAttackDiceCount(3);
-        attackRequest.setTroopsToMoveAfterConquest(1); // Menor que dados usados
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(attackRequest))
+        .principal(principal))
+        .andExpect(status().isBadRequest());
+  }
 
-        when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
-                .thenThrow(new RuntimeException("Movimento de exércitos inválido após a conquista. Mínimo: 3, Máximo: 4."));
+  @Test
+  void attackTerritory_WithInvalidTroopsMovement_ShouldReturnBadRequest() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    AttackRequestDto attackRequest = new AttackRequestDto();
+    attackRequest.setSourceTerritoryId(10L);
+    attackRequest.setTargetTerritoryId(11L);
+    attackRequest.setAttackDiceCount(3);
+    attackRequest.setTroopsToMoveAfterConquest(1); // Menor que dados usados
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(attackRequest))
-                .principal(principal))
-                .andExpect(status().isBadRequest());
-    }
+    when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
+        .thenThrow(new RuntimeException("Movimento de exércitos inválido após a conquista. Mínimo: 3, Máximo: 4."));
 
-    @Test
-    void attackTerritory_WithTerritoryNotFound_ShouldReturnBadRequest() throws Exception {
-        // Arrange
-        Long gameId = 1L;
-        AttackRequestDto attackRequest = new AttackRequestDto();
-        attackRequest.setSourceTerritoryId(999L);
-        attackRequest.setTargetTerritoryId(11L);
-        attackRequest.setAttackDiceCount(3);
-        attackRequest.setTroopsToMoveAfterConquest(3);
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(attackRequest))
+        .principal(principal))
+        .andExpect(status().isBadRequest());
+  }
 
-        when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
-                .thenThrow(new RuntimeException("Território atacante não encontrado."));
+  @Test
+  void attackTerritory_WithTerritoryNotFound_ShouldReturnBadRequest() throws Exception {
+    // Arrange
+    Long gameId = 1L;
+    AttackRequestDto attackRequest = new AttackRequestDto();
+    attackRequest.setSourceTerritoryId(999L);
+    attackRequest.setTargetTerritoryId(11L);
+    attackRequest.setAttackDiceCount(3);
+    attackRequest.setTroopsToMoveAfterConquest(3);
 
-        // Act & Assert
-        mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(attackRequest))
-                .principal(principal))
-                .andExpect(status().isBadRequest());
-    }
+    when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
+        .thenThrow(new RuntimeException("Território atacante não encontrado."));
+
+    // Act & Assert
+    mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(attackRequest))
+        .principal(principal))
+        .andExpect(status().isBadRequest());
+  }
 }

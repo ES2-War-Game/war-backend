@@ -114,7 +114,7 @@ class PlayerControllerWebTest {
     player1.setId(1L);
     player1.setUsername("usuario1");
     player1.setEmail("u1@ex.com");
-    
+
     Player player2 = new Player();
     player2.setId(2L);
     player2.setUsername("usuario2");
