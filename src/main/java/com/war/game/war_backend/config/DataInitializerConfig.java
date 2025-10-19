@@ -7,6 +7,7 @@ import java.util.Set;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.war.game.war_backend.model.Game;
@@ -26,6 +27,7 @@ import com.war.game.war_backend.repository.TerritoryRepository;
 public class DataInitializerConfig {
 
     @Bean
+    @Order(2) // Executa depois do TerritoryInitializerConfig
     CommandLineRunner initDatabase(
             PlayerRepository playerRepository,
             RoleRepository roleRepository,
@@ -68,10 +70,10 @@ public class DataInitializerConfig {
                 playerGame = playerGameRepository.save(playerGame);
                 
                 // Add some initial territories with armies
-                Territory territory1 = territoryRepository.findByName("Brasil")
-                    .orElseThrow(() -> new RuntimeException("Territory 'Brasil' not found"));
-                Territory territory2 = territoryRepository.findByName("Argentina")
-                    .orElseThrow(() -> new RuntimeException("Territory 'Argentina' not found"));
+                Territory territory1 = territoryRepository.findByName("BRASIL")
+                    .orElseThrow(() -> new RuntimeException("Territory 'BRASIL' not found"));
+                Territory territory2 = territoryRepository.findByName("ARGENTINA")
+                    .orElseThrow(() -> new RuntimeException("Territory 'ARGENTINA' not found"));
 
                 // Create GameTerritory entries with initial armies
                 GameTerritory gameTerritory1 = new GameTerritory();
