@@ -5,27 +5,31 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.war.game.war_backend.model.Game;
+import com.war.game.war_backend.model.GameTerritory;
 import com.war.game.war_backend.model.Player;
+import com.war.game.war_backend.model.PlayerGame;
 import com.war.game.war_backend.model.Territory;
 import com.war.game.war_backend.repository.GameRepository;
+import com.war.game.war_backend.repository.GameTerritoryRepository;
+import com.war.game.war_backend.repository.PlayerGameRepository;
 import com.war.game.war_backend.repository.PlayerRepository;
 import com.war.game.war_backend.repository.TerritoryRepository;
 import com.war.game.war_backend.security.jwt.JwtTokenUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureWebMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
-@AutoConfigureWebMvc
-@TestPropertySource(locations = "classpath:application-test.properties")
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @Transactional
 class GameControllerAllocateTroopsIntegrationTest {
@@ -43,6 +47,12 @@ class GameControllerAllocateTroopsIntegrationTest {
     private TerritoryRepository territoryRepository;
 
     @Autowired
+    private PlayerGameRepository playerGameRepository;
+
+    @Autowired
+    private GameTerritoryRepository gameTerritoryRepository;
+
+    @Autowired
     private JwtTokenUtil jwtTokenUtil;
 
     @Autowired
@@ -51,6 +61,8 @@ class GameControllerAllocateTroopsIntegrationTest {
     private Player testPlayer;
     private Game testGame;
     private Territory testTerritory;
+    private PlayerGame testPlayerGame;
+    private GameTerritory testGameTerritory;
     private String authToken;
 
     @BeforeEach
@@ -60,19 +72,44 @@ class GameControllerAllocateTroopsIntegrationTest {
         testPlayer.setUsername("testuser");
         testPlayer.setEmail("test@example.com");
         testPlayer.setPassword(passwordEncoder.encode("password"));
+        testPlayer.setRoles(new java.util.HashSet<>());
         testPlayer = playerRepository.save(testPlayer);
 
-        // Criar território de teste
-        testTerritory = new Territory();
-        testTerritory.setName("BRASIL");
-        testTerritory.setContinent("América do Sul");
-        testTerritory = territoryRepository.save(testTerritory);
+        // Buscar território existente criado pelo TerritoryInitializer
+        testTerritory = territoryRepository.findByName("BRASIL")
+                .orElseThrow(() -> new RuntimeException("Território BRASIL não foi inicializado"));
 
         // Criar jogo de teste
         testGame = new Game();
         testGame.setName("Test Game");
         testGame.setStatus("In Game - Initial Allocation");
+        testGame.setCreatedAt(java.time.LocalDateTime.now());
         testGame = gameRepository.save(testGame);
+
+        // Criar PlayerGame (jogador participando do jogo)
+        testPlayerGame = new PlayerGame();
+        testPlayerGame.setGame(testGame);
+        testPlayerGame.setPlayer(testPlayer);
+        testPlayerGame.setTurnOrder(1);
+        testPlayerGame.setUnallocatedArmies(10); // Tropas disponíveis para alocar
+        testPlayerGame.setConqueredTerritoryThisTurn(false);
+        testPlayerGame.setStillInGame(true);
+        testPlayerGame = playerGameRepository.save(testPlayerGame);
+
+        // Configurar o jogo para ter o jogador como jogador da vez
+        testGame.setTurnPlayer(testPlayerGame);
+        testGame = gameRepository.save(testGame);
+        
+        // Recarregar o jogo do banco para ter as associações atualizadas
+        testGame = gameRepository.findById(testGame.getId()).orElseThrow();
+
+        // Criar GameTerritory (território pertencente ao jogador no jogo)
+        testGameTerritory = new GameTerritory();
+        testGameTerritory.setGame(testGame);
+        testGameTerritory.setTerritory(testTerritory);
+        testGameTerritory.setOwner(testPlayerGame);
+        testGameTerritory.setArmies(5); // Já tem 5 tropas no território
+        testGameTerritory = gameTerritoryRepository.save(testGameTerritory);
 
         // Gerar token JWT
         org.springframework.security.core.userdetails.UserDetails userDetails =
@@ -96,7 +133,8 @@ class GameControllerAllocateTroopsIntegrationTest {
                 .header("Authorization", authToken)
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(testGame.getId()));
+                .andExpect(jsonPath("$.id").value(testGame.getId()))
+                .andExpect(jsonPath("$.status").exists());
     }
 
     @Test
@@ -110,7 +148,7 @@ class GameControllerAllocateTroopsIntegrationTest {
                 .param("territoryId", territoryId.toString())
                 .param("count", count.toString())
                 .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden()); // Spring Security retorna 403 para acesso sem auth
     }
 
     @Test

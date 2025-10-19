@@ -46,7 +46,9 @@ class GameControllerAllocateTroopsTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(gameController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(gameController)
+                .setControllerAdvice() // Adiciona suporte para @ControllerAdvice
+                .build();
         objectMapper = new ObjectMapper();
     }
 
@@ -62,6 +64,8 @@ class GameControllerAllocateTroopsTest {
         mockGame.setId(gameId);
         mockGame.setName("Test Game");
         mockGame.setStatus("In Game - Initial Allocation");
+        mockGame.setPlayerGames(new java.util.HashSet<>()); // Inicializar coleções para evitar NPE
+        mockGame.setGameTerritories(new java.util.HashSet<>());
 
         when(principal.getName()).thenReturn(username);
         when(gameService.allocateTroops(gameId, username, territoryId, count)).thenReturn(mockGame);
