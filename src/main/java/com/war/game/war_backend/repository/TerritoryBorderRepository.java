@@ -1,9 +1,11 @@
 package com.war.game.war_backend.repository;
 
-import com.war.game.war_backend.model.TerritoryBorder;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import java.util.Optional;
+
+import com.war.game.war_backend.model.TerritoryBorder;
 
 public interface TerritoryBorderRepository extends JpaRepository<TerritoryBorder, Long> {
     /**
@@ -14,4 +16,9 @@ public interface TerritoryBorderRepository extends JpaRepository<TerritoryBorder
            "(tb.territoryA.id = :territoryAId AND tb.territoryB.id = :territoryBId) OR " +
            "(tb.territoryA.id = :territoryBId AND tb.territoryB.id = :territoryAId)")
     Optional<TerritoryBorder> findByTerritoryIds(Long territoryAId, Long territoryBId);
+    
+    @Query("SELECT CASE WHEN COUNT(tb) > 0 THEN true ELSE false END FROM TerritoryBorder tb WHERE " +
+           "(tb.territoryA.id = :territoryAId AND tb.territoryB.id = :territoryBId) OR " +
+           "(tb.territoryA.id = :territoryBId AND tb.territoryB.id = :territoryAId)")
+    boolean areTerritoryBordering(Long territoryAId, Long territoryBId);
 }

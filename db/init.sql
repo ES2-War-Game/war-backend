@@ -63,7 +63,8 @@ CREATE TABLE game (
     status VARCHAR(50) NOT NULL,
     turn_player_id BIGINT NULL,
     winner_id BIGINT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    card_set_exchange_count INTEGER NOT NULL DEFAULT 0
 );
 
 -- Tabela de relacionamento entre jogadores e jogos
@@ -78,6 +79,7 @@ CREATE TABLE player_game (
     objective_id BIGINT NULL,
     conquered_territory_this_turn BOOLEAN NOT NULL DEFAULT FALSE,
     still_in_game BOOLEAN NOT NULL DEFAULT TRUE,
+    unallocated_armies INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT fk_player FOREIGN KEY (player_id) REFERENCES player(pk_id),
     CONSTRAINT fk_game FOREIGN KEY (game_id) REFERENCES game(pk_id),
     CONSTRAINT fk_objective FOREIGN KEY (objective_id) REFERENCES objective(pk_id)
@@ -105,7 +107,26 @@ CREATE TABLE game_territory (
     player_game_id BIGINT NULL,
     armies INTEGER NOT NULL DEFAULT 0,
     unallocated_armies INTEGER NOT NULL DEFAULT 0,
+    moved_armies INTEGER NOT NULL DEFAULT 0,
+    available_armies INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT fk_game FOREIGN KEY (game_id) REFERENCES game(pk_id),
     CONSTRAINT fk_territory FOREIGN KEY (territory_id) REFERENCES territory(pk_id),
     CONSTRAINT fk_player_game FOREIGN KEY (player_game_id) REFERENCES player_game(pk_id)
+);
+
+-- Tabela para armazenar movimentação de tropas
+CREATE TABLE troop_movement (
+    pk_id BIGSERIAL PRIMARY KEY,
+    source_territory_id BIGINT NOT NULL,
+    target_territory_id BIGINT NOT NULL,
+    number_of_troops INTEGER NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    start_time TIMESTAMP NOT NULL,
+    estimated_arrival_time TIMESTAMP NOT NULL,
+    game_id BIGINT NOT NULL,
+    player_game_id BIGINT NOT NULL,
+    CONSTRAINT fk_source_territory FOREIGN KEY (source_territory_id) REFERENCES game_territory(pk_id),
+    CONSTRAINT fk_target_territory FOREIGN KEY (target_territory_id) REFERENCES game_territory(pk_id),
+    CONSTRAINT fk_game_troop FOREIGN KEY (game_id) REFERENCES game(pk_id),
+    CONSTRAINT fk_player_game_troop FOREIGN KEY (player_game_id) REFERENCES player_game(pk_id)
 );
