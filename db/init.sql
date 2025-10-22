@@ -63,7 +63,8 @@ CREATE TABLE game (
     status VARCHAR(50) NOT NULL,
     turn_player_id BIGINT NULL,
     winner_id BIGINT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    card_set_exchange_count INTEGER NOT NULL DEFAULT 0
 );
 
 -- Tabela de relacionamento entre jogadores e jogos

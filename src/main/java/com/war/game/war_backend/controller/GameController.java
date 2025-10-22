@@ -47,6 +47,7 @@ public class GameController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<LobbyCreationResponseDto> createLobby(@Valid @RequestBody LobbyCreationRequestDto request, Principal principal) {
         // Obtém o nome de usuário do token JWT
+        System.out.println("DEBUG: Corpo da Requisição Recebido: " + request);
         String username = principal.getName();
         Player creator = playerService.getPlayerByUsername(username);
 

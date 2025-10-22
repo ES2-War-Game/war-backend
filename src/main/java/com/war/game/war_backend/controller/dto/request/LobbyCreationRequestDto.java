@@ -7,5 +7,5 @@ import jakarta.validation.constraints.NotBlank;
 public class LobbyCreationRequestDto {
 
     @NotBlank(message = "O nome do lobby é obrigatório")
-    private String lobbyName;
+    public String lobbyName;
 }

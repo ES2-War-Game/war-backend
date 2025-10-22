@@ -377,7 +377,7 @@ public class GameService {
             long currentCards = playerCardRepository.countByPlayerGame(currentPlayerGame); 
             
             if (currentPlayerGame.getConqueredTerritoryThisTurn() && currentCards < 5) {
-                // Se conquistou pelo menos 1 território e não está no limite de 5 cartas, recebe uma
+                // Se conquistou pelo menos 1 território e não está no limite de 5 cartas, recebe uma carta
                 drawCard(currentPlayerGame);
             }
             
