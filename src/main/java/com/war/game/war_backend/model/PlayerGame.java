@@ -52,7 +52,7 @@ public class PlayerGame {
   private Set<GameTerritory> ownedTerritories;
 
   @Column(name = "unallocated_armies")
-  private Integer unallocatedArmies;
+  private Integer unallocatedArmies = 0;
 
   @Column(name = "conquered_territory_this_turn", nullable = false)
   private Boolean conqueredTerritoryThisTurn = false;
