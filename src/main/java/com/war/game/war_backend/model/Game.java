@@ -1,21 +1,34 @@
 package com.war.game.war_backend.model;
 
-import jakarta.persistence.*;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-
 import java.time.LocalDateTime;
-
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.List;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 
 @Entity
 @Table(name = "game")
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"turnPlayer", "winner"})
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(of = "id")
 public class Game {
 
   @Id
@@ -23,11 +36,14 @@ public class Game {
   @Column(name = "pk_id")
   private Long id;
 
-  @Column(nullable = false, length = 255)
-  private String name;
-
   @Column(nullable = false, length = 50)
   private String status;
+
+  @Column(name = "created_at", nullable = false)
+  private LocalDateTime createdAt;
+
+  @Column(name = "name", nullable = false, length = 100)
+  private String name;
 
   @OneToOne
   @JoinColumn(name = "turn_player_id", referencedColumnName = "pk_id")
@@ -36,9 +52,6 @@ public class Game {
   @OneToOne
   @JoinColumn(name = "winner_id", referencedColumnName = "pk_id")
   private PlayerGame winner;
-
-  @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
 
   @Column(name = "card_set_exchange_count", nullable = false)
   private Integer cardSetExchangeCount = 0;
@@ -59,4 +72,6 @@ public class Game {
         .map(PlayerGame::getPlayer)
         .collect(Collectors.toList());
   }
+
+
 }

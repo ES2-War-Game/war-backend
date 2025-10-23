@@ -1,11 +1,13 @@
 package com.war.game.war_backend.security;
 
-import com.war.game.war_backend.model.Player;
+import java.util.Collection;
+import java.util.stream.Collectors;
+
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
-import java.util.Collection;
-import java.util.stream.Collectors;
+
+import com.war.game.war_backend.model.Player;
 
 public class PlayerDetails implements UserDetails {
 
@@ -47,8 +49,16 @@ public class PlayerDetails implements UserDetails {
     return true;
   }
 
+  public Player getPlayer() {
+    return player;
+  }
+
   @Override
   public boolean isEnabled() {
     return true;
+  }
+
+  public Long getId() {
+    return player.getId();
   }
 }
