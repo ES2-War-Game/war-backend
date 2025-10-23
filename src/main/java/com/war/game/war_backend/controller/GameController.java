@@ -45,7 +45,7 @@ public class GameController {
     @Operation(summary = "Cria um novo lobby.", description = "O jogador autenticado torna-se automaticamente o dono do lobby.")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<LobbyCreationResponseDto> createLobby(@Valid @RequestBody LobbyCreationRequestDto request, Principal principal) {
+    public ResponseEntity<LobbyCreationResponseDto> createLobby(@Valid @org.springframework.web.bind.annotation.RequestBody LobbyCreationRequestDto request, Principal principal) {
         // Obtém o nome de usuário do token JWT
         String username = principal.getName();
         Player creator = playerService.getPlayerByUsername(username);
