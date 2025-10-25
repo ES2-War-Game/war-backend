@@ -1,16 +1,17 @@
 package com.war.game.war_backend.services;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional; // Mantido para lógica transacional
+
 import com.war.game.war_backend.events.GameOverEvent; // NOVO: Importe o Evento
 import com.war.game.war_backend.model.Game;
 import com.war.game.war_backend.model.Objective;
 import com.war.game.war_backend.model.PlayerGame;
-
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 public class WinConditionService {
@@ -112,7 +113,7 @@ public class WinConditionService {
         }
         if (description.contains("18 territórios com pelo menos 2 exércitos")) {
              long qualifiedTerritories = playerGame.getOwnedTerritories().stream()
-                                            .filter(t -> t.getArmies() >= 2) 
+                                            .filter(t -> (t.getStaticArmies() + t.getMovedInArmies()) >= 2) 
                                             .count();
              return qualifiedTerritories >= 18;
         }
@@ -122,7 +123,7 @@ public class WinConditionService {
     // Verifica objetivo de eliminação de um jogador específico
     private boolean checkEliminatePlayer(Game game, PlayerGame actingPlayerGame, Objective objective) {
         String description = objective.getDescription();
-        String targetColor = description.substring(description.lastIndexOf(" ") + 1).trim(); 
+        String targetColor = description.substring(description.lastIndexOf(" ") + 1).trim();
         
         return game.getPlayerGames().stream()
                    .filter(pg -> pg.getColor().equalsIgnoreCase(targetColor))

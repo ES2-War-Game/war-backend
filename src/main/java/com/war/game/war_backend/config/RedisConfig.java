@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
@@ -36,23 +35,24 @@ public class RedisConfig {
     public RedisTemplate<String, Movement> redisTemplate(LettuceConnectionFactory connectionFactory) {
         RedisTemplate<String, Movement> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
-        
+
+        // Configure serializers
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(new Jackson2JsonRedisSerializer<>(Movement.class));
-        
+        template.setHashKeySerializer(new StringRedisSerializer());
+        template.setHashValueSerializer(new Jackson2JsonRedisSerializer<>(Movement.class));
+
+        template.afterPropertiesSet();
         return template;
     }
 
     @Bean
-    public RedisMessageListenerContainer redisContainer(
-            LettuceConnectionFactory connectionFactory,
-            MovementExpirationListener movementExpirationListener) {
+    public RedisMessageListenerContainer redisContainer(LettuceConnectionFactory connectionFactory) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(
-            movementExpirationListener,
-            new PatternTopic("__keyevent@*__:expired")
-        );
+        // Uncomment if you want to listen for key expiration events
+        /*container.addMessageListener(messageListener, 
+            new PatternTopic("__keyevent@*__:expired"));*/
         return container;
     }
 }

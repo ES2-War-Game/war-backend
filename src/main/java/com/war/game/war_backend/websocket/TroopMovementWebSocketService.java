@@ -15,8 +15,4 @@ public class TroopMovementWebSocketService {
     public void notifyTroopMovementUpdate(Long gameId, TroopMovementResponse movement) {
         messagingTemplate.convertAndSend("/topic/game/" + gameId + "/troop-movements", movement);
     }
-
-    public void notifyTroopMovementComplete(Long gameId, TroopMovementResponse movement) {
-        messagingTemplate.convertAndSend("/topic/game/" + gameId + "/troop-movements/complete", movement);
-    }
 }
