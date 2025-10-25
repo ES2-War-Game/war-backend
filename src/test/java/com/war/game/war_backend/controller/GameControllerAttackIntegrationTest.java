@@ -118,7 +118,7 @@ class GameControllerAttackIntegrationTest {
     // Criar jogo de teste
     testGame = new Game();
     testGame.setName("Test Attack Game");
-    testGame.setStatus("In Game - Attack");
+    testGame.setStatus("ATTACK"); // Use exatamente o nome da constante do enum GameStatus
     testGame.setCreatedAt(java.time.LocalDateTime.now());
     testGame = gameRepository.save(testGame);
 
@@ -126,6 +126,7 @@ class GameControllerAttackIntegrationTest {
     attackerPlayerGame = new PlayerGame();
     attackerPlayerGame.setGame(testGame);
     attackerPlayerGame.setPlayer(attacker);
+    attackerPlayerGame.setUsername(attacker.getUsername());
     attackerPlayerGame.setTurnOrder(1);
     attackerPlayerGame.setUnallocatedArmies(0);
     attackerPlayerGame.setConqueredTerritoryThisTurn(false);
@@ -136,6 +137,7 @@ class GameControllerAttackIntegrationTest {
     defenderPlayerGame = new PlayerGame();
     defenderPlayerGame.setGame(testGame);
     defenderPlayerGame.setPlayer(defender);
+    defenderPlayerGame.setUsername(defender.getUsername());
     defenderPlayerGame.setTurnOrder(2);
     defenderPlayerGame.setUnallocatedArmies(0);
     defenderPlayerGame.setConqueredTerritoryThisTurn(false);
@@ -192,7 +194,7 @@ class GameControllerAttackIntegrationTest {
         .content(objectMapper.writeValueAsString(attackRequest)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(testGame.getId()))
-        .andExpect(jsonPath("$.status").value("In Game - Attack"));
+        .andExpect(jsonPath("$.status").value("ATTACK"));
   }
 
   @Test

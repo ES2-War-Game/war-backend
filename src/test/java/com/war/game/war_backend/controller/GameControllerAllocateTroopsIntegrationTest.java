@@ -70,8 +70,9 @@ class GameControllerAllocateTroopsIntegrationTest {
   void setUp() {
     // Criar jogador de teste
     testPlayer = new Player();
-    testPlayer.setUsername("testuser");
-    testPlayer.setEmail("test@example.com");
+    String timestamp = String.valueOf(System.currentTimeMillis());
+    testPlayer.setUsername("testuser_" + timestamp);
+    testPlayer.setEmail("test" + timestamp + "@example.com");
     testPlayer.setPassword(passwordEncoder.encode("password"));
     testPlayer.setRoles(new java.util.HashSet<>());
     testPlayer = playerRepository.save(testPlayer);
