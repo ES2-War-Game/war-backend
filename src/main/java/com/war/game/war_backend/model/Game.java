@@ -21,6 +21,10 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.FetchType;
+import java.util.HashSet;
+
 @Entity
 @Table(name = "game")
 @Getter
@@ -57,8 +61,8 @@ public class Game {
   private Integer cardSetExchangeCount = 0;
 
   // Relacionamento com PlayerGame
-  @OneToMany(mappedBy = "game")
-  private Set<PlayerGame> playerGames;
+  @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+  private Set<PlayerGame> playerGames = new HashSet<>();
 
   // Relacionamento com GameTerritory
   @OneToMany(mappedBy = "game")
