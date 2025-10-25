@@ -3,31 +3,38 @@ package com.war.game.war_backend.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.war.game.war_backend.controller.dto.request.PlayerRegistrationDto;
-import com.war.game.war_backend.controller.dto.request.PlayerUpdateDto;
-import com.war.game.war_backend.model.Player;
-import com.war.game.war_backend.security.jwt.JwtTokenUtil;
-import com.war.game.war_backend.services.PlayerService;
 import java.util.Arrays;
+import java.util.Collections;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.http.MediaType;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.war.game.war_backend.controller.dto.request.LoginRequestDto;
+import com.war.game.war_backend.controller.dto.request.PlayerRegistrationDto;
+import com.war.game.war_backend.controller.dto.request.PlayerUpdateDto;
+import com.war.game.war_backend.model.Player;
+import com.war.game.war_backend.security.jwt.JwtTokenUtil;
+import com.war.game.war_backend.services.PlayerService;
 
 @ExtendWith(MockitoExtension.class)
 class PlayerControllerWebTest {
@@ -45,6 +52,7 @@ class PlayerControllerWebTest {
   private JwtTokenUtil jwtTokenUtil;
 
   private static final String REGISTER_ENDPOINT = "/api/v1/players/register";
+  private static final String LOGIN_ENDPOINT = "/api/v1/players/login";
   private static final String PLAYERS_ENDPOINT = "/api/v1/players";
 
   @BeforeEach
@@ -148,7 +156,50 @@ class PlayerControllerWebTest {
         .andExpect(jsonPath("$.email").value("u1@ex.com"));
   }
 
+    @Test
+  void login_returns200_andToken_whenCredentialsValid() throws Exception {
+    LoginRequestDto loginDto = new LoginRequestDto("usuario", "senha123");
+    // Mock do UserDetails
+    User userDetails = new User(
+        "usuario", "senha123", Collections.emptyList());
+
+    // Mock do Authentication que retorna o UserDetails
+    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+        userDetails, null, Collections.emptyList());
+
+    when(authenticationManager.authenticate(any()))
+        .thenReturn(authToken);
+    when(jwtTokenUtil.generateToken(any())).thenReturn("jwt-token");
+
+    mockMvc.perform(post(LOGIN_ENDPOINT)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(loginDto)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.token").exists())
+        .andExpect(jsonPath("$.token").value("jwt-token"));
+  }
+
   @Test
+  void login_returns401_whenCredentialsInvalid() throws Exception {
+    LoginRequestDto loginDto = new LoginRequestDto("usuario", "senha-errada");
+    when(authenticationManager.authenticate(any()))
+        .thenThrow(new BadCredentialsException("Invalid credentials"));
+
+    mockMvc.perform(post(LOGIN_ENDPOINT)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(loginDto)))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void login_returns400_whenRequestInvalid() throws Exception {
+    LoginRequestDto loginDto = new LoginRequestDto("", "");
+
+    mockMvc.perform(post(LOGIN_ENDPOINT)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(loginDto)))
+        .andExpect(status().isBadRequest());
+  }  @Test
   void getPlayer_returns404_whenPlayerNotFound() throws Exception {
     when(playerService.getPlayerById(1L)).thenThrow(new IllegalArgumentException("Jogador não encontrado"));
 

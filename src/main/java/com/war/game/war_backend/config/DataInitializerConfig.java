@@ -16,6 +16,7 @@ import com.war.game.war_backend.model.Player;
 import com.war.game.war_backend.model.PlayerGame;
 import com.war.game.war_backend.model.Role;
 import com.war.game.war_backend.model.Territory;
+import com.war.game.war_backend.model.enums.GameConstants;
 import com.war.game.war_backend.model.enums.GameStatus;
 import com.war.game.war_backend.repository.GameRepository;
 import com.war.game.war_backend.repository.GameTerritoryRepository;
@@ -23,7 +24,6 @@ import com.war.game.war_backend.repository.PlayerGameRepository;
 import com.war.game.war_backend.repository.PlayerRepository;
 import com.war.game.war_backend.repository.RoleRepository;
 import com.war.game.war_backend.repository.TerritoryRepository;
-import com.war.game.war_backend.model.enums.GameConstants;
 
 @Configuration
 public class DataInitializerConfig {
@@ -96,14 +96,18 @@ public class DataInitializerConfig {
                 gameTerritory1.setTerritory(territory1);
                 gameTerritory1.setGame(game);
                 gameTerritory1.setOwner(playerGame);
-                gameTerritory1.setArmies(10);
+                gameTerritory1.setStaticArmies(10);  // Todas as tropas iniciais são estáticas
+                gameTerritory1.setMovedInArmies(0);  // Nenhuma tropa movida inicialmente
+                gameTerritory1.setUnallocatedArmies(0);  // Nenhuma tropa não alocada
                 gameTerritoryRepository.save(gameTerritory1);
 
                 GameTerritory gameTerritory2 = new GameTerritory();
                 gameTerritory2.setTerritory(territory2);
                 gameTerritory2.setGame(game);
                 gameTerritory2.setOwner(playerGame);
-                gameTerritory2.setArmies(5);
+                gameTerritory2.setStaticArmies(5);   // Todas as tropas iniciais são estáticas
+                gameTerritory2.setMovedInArmies(0);  // Nenhuma tropa movida inicialmente
+                gameTerritory2.setUnallocatedArmies(0);  // Nenhuma tropa não alocada
                 gameTerritoryRepository.save(gameTerritory2);
             }
         };

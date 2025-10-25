@@ -1,11 +1,9 @@
-package com.war.game.war_backend.service;
+package com.war.game.war_backend.services;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,8 +70,10 @@ public class TroopMovementService {
             throw new RuntimeException("Player doesn't own the source territory");
         }
 
-        if (sourceTerritory.getArmies() < request.getNumberOfTroops()) {
-            throw new RuntimeException("Not enough troops in source territory");
+        // Validate available troops for movement
+        int availableTroops = sourceTerritory.getStaticArmies();
+        if (availableTroops < request.getNumberOfTroops()) {
+            throw new RuntimeException("Not enough static troops available for movement in this territory");
         }
 
         // Validate if territories are bordering
@@ -81,11 +81,6 @@ public class TroopMovementService {
                 sourceTerritory.getTerritory().getId(), 
                 targetTerritory.getTerritory().getId())) {
             throw new RuntimeException("Territories are not bordering");
-        }
-
-        // Validate if troops are available for movement (not moved in this round)
-        if (sourceTerritory.getAvailableArmies() < request.getNumberOfTroops()) {
-            throw new RuntimeException("Not enough troops available for movement in this round");
         }
 
         // Validate if target territory is owned by the same player
@@ -98,26 +93,20 @@ public class TroopMovementService {
         movement.setSourceTerritory(sourceTerritory);
         movement.setTargetTerritory(targetTerritory);
         movement.setNumberOfTroops(request.getNumberOfTroops());
-        movement.setStatus("IN_PROGRESS");
-        movement.setStartTime(LocalDateTime.now());
-        movement.setEstimatedArrivalTime(LocalDateTime.now().plusMinutes(5)); // Example: 5 minutes travel time
         movement.setGame(sourceTerritory.getGame());
         movement.setPlayerGame(playerGame);
 
-        // Check if there's already a movement in progress between these territories
-        if (troopMovementRepository.existsByGameIdAndSourceTerritory_IdAndTargetTerritory_IdAndStatus(
-                game.getId(), sourceTerritory.getId(), targetTerritory.getId(), "IN_PROGRESS")) {
-            throw new IllegalStateException("There's already a troop movement in progress between these territories");
-        }
+        // Update source territory - reduce static armies
+        sourceTerritory.setStaticArmies(sourceTerritory.getStaticArmies() - request.getNumberOfTroops());
 
-        // Reduce troops from source territory and mark them as moved
-        sourceTerritory.setArmies(sourceTerritory.getArmies() - request.getNumberOfTroops());
-        sourceTerritory.markTroopsAsMoved(request.getNumberOfTroops());
-        
-        // Save source territory
+        // Update target territory - add to moved_in armies
+        targetTerritory.setMovedInArmies(targetTerritory.getMovedInArmies() + request.getNumberOfTroops());
+
+        // Save territories
         gameTerritoryRepository.save(sourceTerritory);
+        gameTerritoryRepository.save(targetTerritory);
 
-        // Save the movement
+        // Save the movement for history
         movement = troopMovementRepository.save(movement);
 
         // Notify clients via WebSocket
@@ -138,32 +127,12 @@ public class TroopMovementService {
     public void resetTroopMovementsForGame(Long gameId) {
         List<GameTerritory> territories = gameTerritoryRepository.findByGame_Id(gameId);
         for (GameTerritory territory : territories) {
-            territory.resetMovedTroops();
+            // Consolidate all troops as static armies for the new turn
+            int totalArmies = territory.getStaticArmies() + territory.getMovedInArmies();
+            territory.setStaticArmies(totalArmies);
+            territory.setMovedInArmies(0);
         }
         gameTerritoryRepository.saveAll(territories);
-    }
-
-    @Scheduled(fixedDelay = 1000) // Executes every 1 second
-    @Transactional
-    public void processMovements() {
-        LocalDateTime now = LocalDateTime.now();
-        List<TroopMovement> completedMovements = troopMovementRepository
-                .findByStatusAndEstimatedArrivalTimeLessThanEqual("IN_PROGRESS", now);
-
-        for (TroopMovement movement : completedMovements) {
-            // Update target territory troops
-            GameTerritory targetTerritory = movement.getTargetTerritory();
-            targetTerritory.setArmies(targetTerritory.getArmies() + movement.getNumberOfTroops());
-            gameTerritoryRepository.save(targetTerritory);
-
-            // Mark movement as completed
-            movement.setStatus("COMPLETED");
-            troopMovementRepository.save(movement);
-
-            // Notify via WebSocket
-            TroopMovementResponse response = convertToResponse(movement);
-            webSocketService.notifyTroopMovementComplete(movement.getGame().getId(), response);
-        }
     }
 
     private TroopMovementResponse convertToResponse(TroopMovement movement) {
@@ -172,9 +141,7 @@ public class TroopMovementService {
         response.setSourceTerritory(movement.getSourceTerritory().getId());
         response.setTargetTerritory(movement.getTargetTerritory().getId());
         response.setNumberOfTroops(movement.getNumberOfTroops());
-        response.setStatus(movement.getStatus());
-        response.setStartTime(movement.getStartTime());
-        response.setEstimatedArrivalTime(movement.getEstimatedArrivalTime());
+        response.setCreatedAt(movement.getCreatedAt());
         return response;
     }
 }

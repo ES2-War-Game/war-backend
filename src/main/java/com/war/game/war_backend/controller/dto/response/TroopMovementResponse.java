@@ -10,7 +10,5 @@ public class TroopMovementResponse {
     private Long sourceTerritory;
     private Long targetTerritory;
     private Integer numberOfTroops;
-    private String status;
-    private LocalDateTime startTime;
-    private LocalDateTime estimatedArrivalTime;
+    private LocalDateTime createdAt;
 }
