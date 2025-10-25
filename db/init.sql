@@ -107,24 +107,21 @@ CREATE TABLE game_territory (
     game_id BIGINT NOT NULL,
     territory_id BIGINT NOT NULL,
     player_game_id BIGINT NULL,
-    armies INTEGER NOT NULL DEFAULT 0,
+    static_armies INTEGER NOT NULL DEFAULT 0,
+    moved_in_armies INTEGER NOT NULL DEFAULT 0,
     unallocated_armies INTEGER NOT NULL DEFAULT 0,
-    moved_armies INTEGER NOT NULL DEFAULT 0,
-    available_armies INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT fk_game FOREIGN KEY (game_id) REFERENCES game(pk_id),
     CONSTRAINT fk_territory FOREIGN KEY (territory_id) REFERENCES territory(pk_id),
     CONSTRAINT fk_player_game FOREIGN KEY (player_game_id) REFERENCES player_game(pk_id)
 );
 
--- Tabela para armazenar movimentação de tropas
+-- Tabela para armazenar histórico de movimentação de tropas
 CREATE TABLE troop_movement (
     pk_id BIGSERIAL PRIMARY KEY,
     source_territory_id BIGINT NOT NULL,
     target_territory_id BIGINT NOT NULL,
     number_of_troops INTEGER NOT NULL,
-    status VARCHAR(20) NOT NULL,
-    start_time TIMESTAMP NOT NULL,
-    estimated_arrival_time TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     game_id BIGINT NOT NULL,
     player_game_id BIGINT NOT NULL,
     CONSTRAINT fk_source_territory FOREIGN KEY (source_territory_id) REFERENCES game_territory(pk_id),

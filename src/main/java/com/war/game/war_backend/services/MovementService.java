@@ -60,7 +60,7 @@ public class MovementService {
         }
 
         // Validate troop count
-        if (originTerritory.getArmies() <= request.getTroops()) {
+        if ((originTerritory.getStaticArmies() + originTerritory.getMovedInArmies()) <= request.getTroops()) {
             throw new IllegalStateException("Not enough troops in territory");
         }
 
@@ -76,7 +76,7 @@ public class MovementService {
         movement.setEndTime(Instant.now().plus(MOVEMENT_DURATION));
 
         // Remove troops from origin
-        originTerritory.setArmies(originTerritory.getArmies() - request.getTroops());
+        originTerritory.setStaticArmies(originTerritory.getStaticArmies() - request.getTroops());
         gameTerritoryRepository.save(originTerritory);
 
         // Save to Redis with TTL
@@ -107,7 +107,7 @@ public class MovementService {
             .findByGame_IdAndTerritory_Id(movement.getGameId(), movement.getOriginTerritoryId())
             .orElseThrow(() -> new IllegalStateException("Origin territory not found"));
 
-        originTerritory.setArmies(originTerritory.getArmies() + movement.getTroops());
+        originTerritory.setStaticArmies(originTerritory.getStaticArmies() + movement.getTroops());
         gameTerritoryRepository.save(originTerritory);
 
         // Remove from Redis
@@ -130,7 +130,7 @@ public class MovementService {
             .orElseThrow(() -> new IllegalStateException("Destination territory not found"));
 
         // Add troops to destination
-        destTerritory.setArmies(destTerritory.getArmies() + movement.getTroops());
+        destTerritory.setMovedInArmies(destTerritory.getMovedInArmies() + movement.getTroops());
         gameTerritoryRepository.save(destTerritory);
 
         // Notify completion

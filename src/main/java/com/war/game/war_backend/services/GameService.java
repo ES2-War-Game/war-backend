@@ -1,5 +1,25 @@
 package com.war.game.war_backend.services;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
+import com.war.game.war_backend.controller.dto.response.GameResultResponse;
+import com.war.game.war_backend.events.GameOverEvent;
+import com.war.game.war_backend.model.Card;
 import com.war.game.war_backend.model.Game;
 import com.war.game.war_backend.model.GameTerritory;
 import com.war.game.war_backend.model.Objective;
@@ -8,39 +28,18 @@ import com.war.game.war_backend.model.PlayerCard;
 import com.war.game.war_backend.model.PlayerGame;
 import com.war.game.war_backend.model.Territory;
 import com.war.game.war_backend.model.enums.CardType;
+import com.war.game.war_backend.model.enums.GameConstants;
 import com.war.game.war_backend.model.enums.GameStatus;
-import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
-import com.war.game.war_backend.controller.dto.response.GameResultResponse;
-import com.war.game.war_backend.events.GameOverEvent;
-import com.war.game.war_backend.model.Card;
 import com.war.game.war_backend.repository.CardRepository;
 import com.war.game.war_backend.repository.GameRepository;
+import com.war.game.war_backend.repository.GameTerritoryRepository;
+import com.war.game.war_backend.repository.ObjectiveRepository;
+import com.war.game.war_backend.repository.PlayerCardRepository;
 import com.war.game.war_backend.repository.PlayerGameRepository;
 import com.war.game.war_backend.repository.TerritoryBorderRepository;
 import com.war.game.war_backend.repository.TerritoryRepository;
-import com.war.game.war_backend.repository.ObjectiveRepository;
-import com.war.game.war_backend.repository.PlayerCardRepository;
-import com.war.game.war_backend.repository.GameTerritoryRepository;
 
 import lombok.RequiredArgsConstructor;
-
-import org.springframework.context.event.EventListener;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.Random;
-import java.util.stream.Collectors;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Map;
-import java.util.Set;
-
-import com.war.game.war_backend.model.enums.GameConstants;
 
 @Service
 @RequiredArgsConstructor
@@ -311,7 +310,8 @@ public class GameService {
         }
 
         // APLICAR A ALOCAÇÃO
-        gameTerritory.setArmies(gameTerritory.getArmies() + count);
+        // Tropas alocadas são sempre estáticas e podem se mover
+        gameTerritory.setStaticArmies(gameTerritory.getStaticArmies() + count);
         currentPlayerGame.setUnallocatedArmies(currentPlayerGame.getUnallocatedArmies() - count);
 
         // LÓGICA DE TRANSIÇÃO DE FASE
@@ -531,8 +531,8 @@ public class GameService {
         // Calcula e Atribui Tropas
         int bonusTroops = calculateCardBonus(game);
         
-        // Bônus por território, Pode deixar o aviso aqui mesmo, talvez façamos algo com esse valor depois
-        int territoryBonus = calculateTerritoryMatchBonus(game, playerGame, cardsToTrade);
+        // Calcula e aplica o bônus de território diretamente
+        calculateTerritoryMatchBonus(game, playerGame, cardsToTrade);
 
         // Adiciona as tropas à reserva do jogador
         playerGame.setUnallocatedArmies(playerGame.getUnallocatedArmies() + bonusTroops);
@@ -585,14 +585,16 @@ public class GameService {
         }
 
         // Validação de Tropas do Atacante e Dados
-        int armiesAvailable = sourceTerritory.getArmies();
+        // Para ataque, consideramos apenas tropas estáticas (que não se moveram)
+        int armiesAvailable = sourceTerritory.getStaticArmies();
         if (armiesAvailable <= dto.getAttackDiceCount()) {
             throw new RuntimeException("Você deve deixar pelo menos um exército no território atacante. Máximo de dados de ataque permitido: " + (armiesAvailable - 1));
         }
 
         // Determinar Dados de Defesa
         PlayerGame defenderPlayerGame = targetTerritory.getOwner();
-        int defenseArmies = targetTerritory.getArmies();
+        // Para defesa, todas as tropas (estáticas e movidas) podem defender
+        int defenseArmies = targetTerritory.getStaticArmies() + targetTerritory.getMovedInArmies();
         
         // Defensor usa 2 dados se tiver 2 ou mais exércitos, senão usa 1.
         int defenseDiceCount = (defenseArmies >= 2) ? 2 : 1;
@@ -607,8 +609,20 @@ public class GameService {
         int defenderLosses = combatResult[1];
 
         // Aplicação das Perdas
-        sourceTerritory.setArmies(sourceTerritory.getArmies() - attackerLosses);
-        targetTerritory.setArmies(targetTerritory.getArmies() - defenderLosses);
+        // O atacante sempre perde tropas estáticas
+        sourceTerritory.setStaticArmies(sourceTerritory.getStaticArmies() - attackerLosses);
+        
+        // O defensor perde primeiro as tropas estáticas, depois as movidas
+        int remainingDefenderLosses = defenderLosses;
+        int currentStaticArmies = targetTerritory.getStaticArmies();
+        
+        if (currentStaticArmies >= remainingDefenderLosses) {
+            targetTerritory.setStaticArmies(currentStaticArmies - remainingDefenderLosses);
+        } else {
+            remainingDefenderLosses -= currentStaticArmies;
+            targetTerritory.setStaticArmies(0);
+            targetTerritory.setMovedInArmies(targetTerritory.getMovedInArmies() - remainingDefenderLosses);
+        }
 
         // Log (manter log para debug)
         System.out.printf("Combate: %s vs %s. Atacante (%s) perdeu %d. Defensor (%s) perdeu %d.\n",
@@ -623,7 +637,7 @@ public class GameService {
         gameTerritoryRepository.save(targetTerritory);
         
         // Lógica de Conquista
-        if (targetTerritory.getArmies() <= 0) {
+        if ((targetTerritory.getStaticArmies() + targetTerritory.getMovedInArmies()) <= 0) {
             
             // Validação do movimento mínimo
             if (dto.getTroopsToMoveAfterConquest() < dto.getAttackDiceCount() || dto.getTroopsToMoveAfterConquest() >= armiesAvailable) {
@@ -632,9 +646,12 @@ public class GameService {
             
             // Transferência de Posse e Tropas
             targetTerritory.setOwner(currentPlayerGame);
-            targetTerritory.setArmies(dto.getTroopsToMoveAfterConquest());
+            // Tropas que conquistam um território ficam como moved_in e não podem se mover novamente
+            targetTerritory.setStaticArmies(0);
+            targetTerritory.setMovedInArmies(dto.getTroopsToMoveAfterConquest());
             
-            sourceTerritory.setArmies(sourceTerritory.getArmies() - dto.getTroopsToMoveAfterConquest());
+            // Reduz as tropas estáticas do território atacante
+            sourceTerritory.setStaticArmies(sourceTerritory.getStaticArmies() - dto.getTroopsToMoveAfterConquest());
 
             // Setar a flag de carta (Recompensa)
             currentPlayerGame.setConqueredTerritoryThisTurn(true);
@@ -752,7 +769,9 @@ public class GameService {
             gt.setGame(game);
             gt.setTerritory(territory);
             gt.setOwner(owner);
-            gt.setArmies(1);
+            gt.setStaticArmies(1);  // Tropas iniciais são estáticas
+            gt.setMovedInArmies(0); // Nenhuma tropa movida inicialmente
+            gt.setUnallocatedArmies(0); // Nenhuma tropa não alocada
             
             gameTerritories.add(gt);
             
@@ -828,15 +847,15 @@ public class GameService {
 
         // Verificar o bônus de correspondência de território
         for (Card card : cardsToTrade) {
-            if (card.getTerritory() != null) {
-                Long territoryMasterId = card.getTerritory().getId();
-                
-                if (ownedTerritoriesMap.containsKey(territoryMasterId)) {
-                    GameTerritory gt = ownedTerritoriesMap.get(territoryMasterId);
-                    gt.setArmies(gt.getArmies() + 2);
-                    gameTerritoryRepository.save(gt);
-                    bonus += 2; 
-                }
+            if (card.getTerritory() == null) continue;
+            Long territoryMasterId = card.getTerritory().getId();
+            
+            if (ownedTerritoriesMap.containsKey(territoryMasterId)) {
+                GameTerritory gt = ownedTerritoriesMap.get(territoryMasterId);
+                gt.setStaticArmies(gt.getStaticArmies() + 2);
+                gameTerritoryRepository.save(gt);
+                bonus += 2;
+                System.out.println("Bônus de território para a carta: " + card.getTerritory().getName());
             }
         }
         return bonus;
