@@ -70,6 +70,19 @@ public class GameController {
             playerDtos
         );
 
+        // Notifica todos os clientes sobre a atualização da lista de lobbies
+        List<Game> allLobbies = gameService.findAllLobbies();
+        List<LobbyListResponseDto> lobbyListDtos = allLobbies.stream()
+            .map(lobby -> new LobbyListResponseDto(
+                lobby.getId(),
+                lobby.getName(),
+                lobby.getStatus(),
+                lobby.getPlayerGames().size()
+            ))
+            .collect(Collectors.toList());
+        
+        messagingTemplate.convertAndSend("/topic/lobbies/list", lobbyListDtos);
+
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
@@ -119,7 +132,20 @@ public class GameController {
 
         GameLobbyDetailsDto responseDto = new GameLobbyDetailsDto(updatedLobby, playerDtos);
 
-        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId, playerDtos);
+        // Envia notificação WebSocket com o sufixo /state
+        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId + "/state", playerDtos);
+        
+        // Notifica sobre a atualização da lista global de lobbies (contagem de jogadores)
+        List<Game> allLobbies = gameService.findAllLobbies();
+        List<LobbyListResponseDto> lobbyListDtos = allLobbies.stream()
+            .map(lobby -> new LobbyListResponseDto(
+                lobby.getId(),
+                lobby.getName(),
+                lobby.getStatus(),
+                lobby.getPlayerGames().size()
+            ))
+            .collect(Collectors.toList());
+        messagingTemplate.convertAndSend("/topic/lobbies/list", lobbyListDtos);
 
         return ResponseEntity.ok(responseDto);
     }
@@ -138,7 +164,21 @@ public class GameController {
         Game updatedLobby = gameService.removePlayerFromLobby(lobbyId, player);
 
         if (updatedLobby == null) {
-            messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId, List.of());
+            // Envia notificação WebSocket com o sufixo /state (lobby excluído)
+            messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId + "/state", List.of());
+            
+            // Notifica sobre a atualização da lista global de lobbies
+            List<Game> allLobbies = gameService.findAllLobbies();
+            List<LobbyListResponseDto> lobbyListDtos = allLobbies.stream()
+                .map(lobby -> new LobbyListResponseDto(
+                    lobby.getId(),
+                    lobby.getName(),
+                    lobby.getStatus(),
+                    lobby.getPlayerGames().size()
+                ))
+                .collect(Collectors.toList());
+            messagingTemplate.convertAndSend("/topic/lobbies/list", lobbyListDtos);
+            
             return ResponseEntity.ok(List.of()); 
         }
 
@@ -153,7 +193,20 @@ public class GameController {
             ))
             .collect(Collectors.toList());
 
-        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId, playerDtos);
+        // Envia notificação WebSocket com o sufixo /state
+        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId + "/state", playerDtos);
+        
+        // Notifica sobre a atualização da lista global de lobbies
+        List<Game> allLobbies = gameService.findAllLobbies();
+        List<LobbyListResponseDto> lobbyListDtos = allLobbies.stream()
+            .map(lobby -> new LobbyListResponseDto(
+                lobby.getId(),
+                lobby.getName(),
+                lobby.getStatus(),
+                lobby.getPlayerGames().size()
+            ))
+            .collect(Collectors.toList());
+        messagingTemplate.convertAndSend("/topic/lobbies/list", lobbyListDtos);
 
         return ResponseEntity.ok(playerDtos);
     }

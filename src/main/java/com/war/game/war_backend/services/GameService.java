@@ -121,16 +121,48 @@ public class GameService {
             throw new RuntimeException("Não é possível entrar. O jogo já foi iniciado ou tem status inválido.");
         }
         
+        // Remove o jogador de outros lobbies ativos (status LOBBY) ANTES de verificar se já está no lobby atual
+        List<PlayerGame> activeLobbies = playerGameRepository.findByPlayerAndGame_Status(player, GameStatus.LOBBY.name());
+        for (PlayerGame activeLobbyPlayerGame : activeLobbies) {
+            Game activeLobby = activeLobbyPlayerGame.getGame();
+            
+            // Pula o lobby atual (que o jogador está tentando entrar)
+            if (activeLobby.getId().equals(lobbyId)) {
+                continue;
+            }
+            
+            // Remove o jogador do lobby anterior
+            activeLobby.getPlayerGames().remove(activeLobbyPlayerGame);
+            playerGameRepository.delete(activeLobbyPlayerGame);
+            
+            // Se o jogador era dono, transfere a propriedade ou deleta o lobby
+            if (activeLobbyPlayerGame.getIsOwner()) {
+                Set<PlayerGame> remainingPlayers = activeLobby.getPlayerGames();
+                
+                if (!remainingPlayers.isEmpty()) {
+                    // Define o próximo jogador como novo dono
+                    List<PlayerGame> remainingPlayersList = new ArrayList<>(remainingPlayers);
+                    PlayerGame newOwner = remainingPlayersList.get(0);
+                    newOwner.setIsOwner(true);
+                    playerGameRepository.save(newOwner);
+                } else {
+                    // Se não houver mais jogadores, exclui o lobby
+                    gameRepository.delete(activeLobby);
+                }
+            }
+        }
+        
+        // Verifica se o jogador já está neste lobby específico (após a limpeza de outros lobbies)
+        // Se já estiver, retorna o jogo sem fazer nada (operação idempotente)
+        Optional<PlayerGame> existingPlayerGame = playerGameRepository.findByGameAndPlayer(game, player);
+        if (existingPlayerGame.isPresent()) {
+            return game; // Jogador já está no lobby, retorna sucesso
+        }
+
         // Checagem de limite de jogadores
         Set<PlayerGame> currentPlayers = game.getPlayerGames();
         if (currentPlayers.size() >= GameConstants.MAX_PLAYERS) {
             throw new RuntimeException("Lobby cheio. Número máximo de jogadores alcançado (" + GameConstants.MAX_PLAYERS + ").");
-        }
-
-        // Verifica se o jogador já está no lobby
-        Optional<PlayerGame> existingPlayerGame = playerGameRepository.findByGameAndPlayer(game, player);
-        if (existingPlayerGame.isPresent()) {
-            throw new RuntimeException("Jogador já está no lobby.");
         }
         
         // --- LÓGICA DE ATRIBUIÇÃO DE COR ---
