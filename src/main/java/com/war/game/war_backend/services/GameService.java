@@ -662,7 +662,7 @@ public class GameService {
         }
 
         // Se o jogo não terminou notifica e retorna como de costume
-        messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", game);
+        messagingTemplate.convertAndSend("/topic/game/" + gameId + "/status", game);
         return game;
     }
 
