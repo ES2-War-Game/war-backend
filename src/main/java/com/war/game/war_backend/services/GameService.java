@@ -104,6 +104,8 @@ public class GameService {
 
         playerGameRepository.save(creatorPlayerGame);
 
+        newGame.getPlayerGames().add(creatorPlayerGame);
+
         return newGame;
     }
 
@@ -163,6 +165,8 @@ public class GameService {
         newPlayerGame.setImageUrl(player.getImageUrl()); 
 
         playerGameRepository.save(newPlayerGame);
+        
+        game.getPlayerGames().add(newPlayerGame);
 
         return game;
     }
@@ -180,16 +184,22 @@ public class GameService {
         PlayerGame playerGame = playerGameRepository.findByGameAndPlayer(game, player)
                 .orElseThrow(() -> new RuntimeException("Jogador não está no lobby."));
 
+        // Reove o player
+        game.getPlayerGames().remove(playerGame); 
+        
         // Remove a entidade de relacionamento do banco de dados
         playerGameRepository.delete(playerGame);
 
         // Lógica para o dono: se o dono sair, o próximo vira o dono
         if (playerGame.getIsOwner()) {
-            List<PlayerGame> remainingPlayers = playerGameRepository.findByGame(game);
+            Set<PlayerGame> remainingPlayersSet = game.getPlayerGames();
             
-            if (!remainingPlayers.isEmpty()) {
+            if (!remainingPlayersSet.isEmpty()) {
+                // Converte para lista para pegar o 'primeiro'
+                List<PlayerGame> remainingPlayersList = new ArrayList<>(remainingPlayersSet); 
+                
                 // Define o próximo jogador como novo dono
-                PlayerGame newOwner = remainingPlayers.get(0);
+                PlayerGame newOwner = remainingPlayersList.get(0);
                 newOwner.setIsOwner(true);
                 playerGameRepository.save(newOwner);
                 

@@ -2,6 +2,7 @@ package com.war.game.war_backend.controller;
 
 import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
 import com.war.game.war_backend.controller.dto.request.LobbyCreationRequestDto;
+import com.war.game.war_backend.controller.dto.response.GameLobbyDetailsDto;
 import com.war.game.war_backend.controller.dto.response.LobbyCreationResponseDto;
 import com.war.game.war_backend.controller.dto.response.LobbyListResponseDto;
 import com.war.game.war_backend.controller.dto.response.PlayerLobbyDtoResponse;
@@ -47,13 +48,27 @@ public class GameController {
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<LobbyCreationResponseDto> createLobby(@Valid @org.springframework.web.bind.annotation.RequestBody LobbyCreationRequestDto request, Principal principal) {
-        // Obtém o nome de usuário do token JWT
         String username = principal.getName();
         Player creator = playerService.getPlayerByUsername(username);
 
         Game newGame = gameService.createNewLobby(request.getLobbyName(), creator);
 
-        LobbyCreationResponseDto response = new LobbyCreationResponseDto(newGame.getId(), newGame.getName());
+        List<PlayerLobbyDtoResponse> playerDtos = newGame.getPlayerGames().stream()
+            .map(playerGame -> new PlayerLobbyDtoResponse(
+                playerGame.getId(),
+                playerGame.getPlayer().getUsername(),
+                playerGame.getColor(),
+                playerGame.getIsOwner(),
+                playerGame.getIsReady(),
+                playerGame.getPlayer().getImageUrl()
+            ))
+            .collect(Collectors.toList());
+
+        LobbyCreationResponseDto response = new LobbyCreationResponseDto(
+            newGame.getId(), 
+            newGame.getName(),
+            playerDtos
+        );
 
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
@@ -69,7 +84,8 @@ public class GameController {
             .map(lobby -> new LobbyListResponseDto(
                 lobby.getId(),
                 lobby.getName(),
-                lobby.getStatus()
+                lobby.getStatus(),
+                lobby.getPlayerGames().size() 
             ))
             .collect(Collectors.toList());
 
@@ -80,10 +96,11 @@ public class GameController {
     @Operation(summary = "Entra em um lobby existente.", description = "Adiciona o jogador autenticado ao lobby especificado. Envia notificação WebSocket.")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<PlayerLobbyDtoResponse>> joinLobby(
+    public ResponseEntity<GameLobbyDetailsDto> joinLobby(
             @Parameter(description = "ID da partida (lobby) que o jogador deseja entrar.") 
             @PathVariable Long lobbyId, 
             Principal principal) {
+        
         String username = principal.getName();
         Player player = playerService.getPlayerByUsername(username);
 
@@ -100,9 +117,11 @@ public class GameController {
             ))
             .collect(Collectors.toList());
 
+        GameLobbyDetailsDto responseDto = new GameLobbyDetailsDto(updatedLobby, playerDtos);
+
         messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId, playerDtos);
 
-        return ResponseEntity.ok(playerDtos);
+        return ResponseEntity.ok(responseDto);
     }
 
     @PostMapping("/leave/{lobbyId}")
