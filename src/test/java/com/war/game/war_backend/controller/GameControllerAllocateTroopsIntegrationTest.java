@@ -84,7 +84,7 @@ class GameControllerAllocateTroopsIntegrationTest {
     // Criar jogo de teste
     testGame = new Game();
     testGame.setName("Test Game");
-    testGame.setStatus("In Game - Initial Allocation");
+    testGame.setStatus("SETUP_ALLOCATION");
     testGame.setCreatedAt(java.time.LocalDateTime.now());
     testGame = gameRepository.save(testGame);
 
@@ -92,6 +92,7 @@ class GameControllerAllocateTroopsIntegrationTest {
     testPlayerGame = new PlayerGame();
     testPlayerGame.setGame(testGame);
     testPlayerGame.setPlayer(testPlayer);
+    testPlayerGame.setUsername(testPlayer.getUsername()); // Definindo o username
     testPlayerGame.setTurnOrder(1);
     testPlayerGame.setUnallocatedArmies(10); // Tropas disponíveis para alocar
     testPlayerGame.setConqueredTerritoryThisTurn(false);
