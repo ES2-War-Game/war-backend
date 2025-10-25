@@ -13,12 +13,19 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "player_game")
-@Data
+@Getter
+@Setter
+@ToString(callSuper = true)
+@EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
 @AllArgsConstructor
 public class PlayerGame {
@@ -55,10 +62,12 @@ public class PlayerGame {
 
   @OneToMany(mappedBy = "playerGame")
   @JsonIgnore
+  @EqualsAndHashCode.Exclude
   private Set<PlayerCard> playerCards;
 
   @OneToMany(mappedBy = "owner")
   @JsonIgnore
+  @EqualsAndHashCode.Exclude
   private Set<GameTerritory> ownedTerritories;
 
   @Column(name = "unallocated_armies", nullable = false)
