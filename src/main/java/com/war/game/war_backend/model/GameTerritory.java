@@ -54,7 +54,10 @@ public class GameTerritory {
   }
 
   public void consolidateArmies() {
-    this.staticArmies = this.getArmies();
+    // Soma as tropas movidas às tropas estáticas e zera as tropas movidas
+    if (this.staticArmies == null) this.staticArmies = 0;
+    if (this.movedInArmies == null) this.movedInArmies = 0;
+    this.staticArmies = this.staticArmies + this.movedInArmies;
     this.movedInArmies = 0;
   }
 

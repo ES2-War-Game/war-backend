@@ -4,17 +4,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.war.game.war_backend.model.Game;
-import com.war.game.war_backend.model.GameTerritory;
-import com.war.game.war_backend.model.Player;
-import com.war.game.war_backend.model.PlayerGame;
-import com.war.game.war_backend.model.Territory;
-import com.war.game.war_backend.repository.GameRepository;
-import com.war.game.war_backend.repository.GameTerritoryRepository;
-import com.war.game.war_backend.repository.PlayerGameRepository;
-import com.war.game.war_backend.repository.PlayerRepository;
-import com.war.game.war_backend.repository.TerritoryRepository;
-import com.war.game.war_backend.security.jwt.JwtTokenUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +15,18 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.war.game.war_backend.model.Game;
+import com.war.game.war_backend.model.GameTerritory;
+import com.war.game.war_backend.model.Player;
+import com.war.game.war_backend.model.PlayerGame;
+import com.war.game.war_backend.model.Territory;
+import com.war.game.war_backend.repository.GameRepository;
+import com.war.game.war_backend.repository.GameTerritoryRepository;
+import com.war.game.war_backend.repository.PlayerGameRepository;
+import com.war.game.war_backend.repository.PlayerRepository;
+import com.war.game.war_backend.repository.TerritoryRepository;
+import com.war.game.war_backend.security.jwt.JwtTokenUtil;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -108,7 +109,8 @@ class GameControllerAllocateTroopsIntegrationTest {
     testGameTerritory.setGame(testGame);
     testGameTerritory.setTerritory(testTerritory);
     testGameTerritory.setOwner(testPlayerGame);
-    testGameTerritory.setArmies(5); // Já tem 5 tropas no território
+    testGameTerritory.setStaticArmies(5); // Já tem 5 tropas estáticas no território
+    testGameTerritory.setMovedInArmies(0); // Nenhuma tropa movida
     testGameTerritory = gameTerritoryRepository.save(testGameTerritory);
 
     // Gerar token JWT
