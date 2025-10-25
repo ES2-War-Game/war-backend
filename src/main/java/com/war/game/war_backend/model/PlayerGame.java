@@ -13,7 +13,6 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -55,9 +54,11 @@ public class PlayerGame {
   private Objective objective;
 
   @OneToMany(mappedBy = "playerGame")
+  @JsonIgnore
   private Set<PlayerCard> playerCards;
 
   @OneToMany(mappedBy = "owner")
+  @JsonIgnore
   private Set<GameTerritory> ownedTerritories;
 
   @Column(name = "unallocated_armies", nullable = false)
@@ -68,4 +69,10 @@ public class PlayerGame {
 
   @Column(name = "still_in_game", nullable = false)
   private Boolean stillInGame = true;
+
+  @Column(name = "username", nullable = false, length = 50)
+    private String username;
+
+  @Column(name = "image_url", nullable = true, length = 255)
+  private String imageUrl;
 }

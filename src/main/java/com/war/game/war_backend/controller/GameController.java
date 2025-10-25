@@ -4,6 +4,7 @@ import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
 import com.war.game.war_backend.controller.dto.request.LobbyCreationRequestDto;
 import com.war.game.war_backend.controller.dto.response.LobbyCreationResponseDto;
 import com.war.game.war_backend.controller.dto.response.LobbyListResponseDto;
+import com.war.game.war_backend.controller.dto.response.PlayerLobbyDtoResponse;
 import com.war.game.war_backend.model.Game;
 import com.war.game.war_backend.model.Player;
 import com.war.game.war_backend.services.GameService;
@@ -79,7 +80,7 @@ public class GameController {
     @Operation(summary = "Entra em um lobby existente.", description = "Adiciona o jogador autenticado ao lobby especificado. Envia notificação WebSocket.")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<Player>> joinLobby(
+    public ResponseEntity<List<PlayerLobbyDtoResponse>> joinLobby(
             @Parameter(description = "ID da partida (lobby) que o jogador deseja entrar.") 
             @PathVariable Long lobbyId, 
             Principal principal) {
@@ -88,17 +89,27 @@ public class GameController {
 
         Game updatedLobby = gameService.addPlayerToLobby(lobbyId, player);
         
-        // Envia a lista atualizada de jogadores para todos que estão no lobby.
-        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId, updatedLobby.getPlayers());
+        List<PlayerLobbyDtoResponse> playerDtos = updatedLobby.getPlayerGames().stream()
+            .map(playerGame -> new PlayerLobbyDtoResponse(
+                playerGame.getId(),
+                playerGame.getPlayer().getUsername(),
+                playerGame.getColor(),
+                playerGame.getIsOwner(),
+                playerGame.getIsReady(),
+                playerGame.getPlayer().getImageUrl()
+            ))
+            .collect(Collectors.toList());
 
-        return ResponseEntity.ok(updatedLobby.getPlayers());
+        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId, playerDtos);
+
+        return ResponseEntity.ok(playerDtos);
     }
 
     @PostMapping("/leave/{lobbyId}")
     @Operation(summary = "Sai de um lobby.", description = "Remove o jogador autenticado do lobby. Se o dono sair, a posse é transferida ou o lobby é excluído.")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<Player>> leaveLobby(
+    public ResponseEntity<List<PlayerLobbyDtoResponse>> leaveLobby(
             @Parameter(description = "ID da partida (lobby) que o jogador deseja sair.") 
             @PathVariable Long lobbyId, 
             Principal principal) {
@@ -108,12 +119,24 @@ public class GameController {
         Game updatedLobby = gameService.removePlayerFromLobby(lobbyId, player);
 
         if (updatedLobby == null) {
+            messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId, List.of());
             return ResponseEntity.ok(List.of()); 
         }
 
-        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId, updatedLobby.getPlayers());
+        List<PlayerLobbyDtoResponse> playerDtos = updatedLobby.getPlayerGames().stream()
+            .map(playerGame -> new PlayerLobbyDtoResponse(
+                playerGame.getId(), 
+                playerGame.getPlayer().getUsername(), 
+                playerGame.getColor(),
+                playerGame.getIsOwner(),
+                playerGame.getIsReady(),
+                playerGame.getPlayer().getImageUrl()
+            ))
+            .collect(Collectors.toList());
 
-        return ResponseEntity.ok(updatedLobby.getPlayers());
+        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId, playerDtos);
+
+        return ResponseEntity.ok(playerDtos);
     }
     
     // --- GAMEPLAY MANAGEMENT ---

@@ -11,6 +11,7 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "game_territory")
@@ -26,6 +27,7 @@ public class GameTerritory {
 
   @ManyToOne
   @JoinColumn(name = "game_id", referencedColumnName = "pk_id")
+  @JsonIgnore
   private Game game;
 
   @ManyToOne
@@ -34,6 +36,7 @@ public class GameTerritory {
 
   @ManyToOne
   @JoinColumn(name = "player_game_id", referencedColumnName = "pk_id", nullable = true)
+  @JsonIgnore
   private PlayerGame owner;
 
   @Column(nullable = false)
