@@ -4,6 +4,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -40,9 +42,11 @@ public class Territory {
   private String continent;
 
   @OneToMany(mappedBy = "territoryA")
+  @JsonIgnore
   private List<TerritoryBorder> bordersA;
 
   @OneToMany(mappedBy = "territoryB")
+  @JsonIgnore
   private List<TerritoryBorder> bordersB;
 
   public Set<TerritoryBorder> getAllBorders() {

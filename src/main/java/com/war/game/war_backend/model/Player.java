@@ -2,6 +2,8 @@ package com.war.game.war_backend.model;
 
 import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -49,6 +51,7 @@ public class Player {
 
   // Relacionamento com PlayerGame
   @OneToMany(mappedBy = "player")
+  @JsonIgnore
   private Set<PlayerGame> playerGames;
 
   public Player(String username, String email, String password) {

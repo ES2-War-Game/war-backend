@@ -6,8 +6,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 
 import com.war.game.war_backend.model.Card;
-import com.war.game.war_backend.model.CardType;
 import com.war.game.war_backend.model.Territory;
+import com.war.game.war_backend.model.enums.CardType;
 import com.war.game.war_backend.repository.CardRepository;
 import com.war.game.war_backend.repository.TerritoryRepository;
 
