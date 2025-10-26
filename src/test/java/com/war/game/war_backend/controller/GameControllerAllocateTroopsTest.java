@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.war.game.war_backend.controller.dto.response.GameStateResponseDto;
 import com.war.game.war_backend.model.Game;
 import com.war.game.war_backend.services.GameService;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,7 +84,11 @@ class GameControllerAllocateTroopsTest {
 
     // Verify interactions
     verify(gameService, times(1)).allocateTroops(gameId, username, territoryId, count);
-    verify(messagingTemplate, times(1)).convertAndSend("/topic/game/" + gameId + "/state", mockGame);
+    // Verifica que um GameStateResponseDto foi enviado via WebSocket
+    verify(messagingTemplate, times(1)).convertAndSend(
+        eq("/topic/game/" + gameId + "/state"), 
+        any(GameStateResponseDto.class)
+    );
   }
 
   @Test
