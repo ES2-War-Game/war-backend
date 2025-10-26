@@ -58,7 +58,7 @@ public class PlayerController {
   @Operation(summary = "Login do jogador", description = "Autentica um jogador e inicia uma sessão.")
   @ApiResponse(responseCode = "200", description = "Login bem-sucedido")
   @ApiResponse(responseCode = "401", description = "Credenciais inválidas")
-  public ResponseEntity<JwtResponseDto> loginPlayer(@RequestBody LoginRequestDto loginDto) {
+  public ResponseEntity<JwtResponseDto> loginPlayer(@Valid @RequestBody LoginRequestDto loginDto) {
     Authentication authentication = authenticationManager.authenticate(
         new UsernamePasswordAuthenticationToken(loginDto.getUsername(), loginDto.getPassword()));
 
