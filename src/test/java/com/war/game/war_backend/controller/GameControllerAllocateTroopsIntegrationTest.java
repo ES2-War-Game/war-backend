@@ -84,7 +84,7 @@ class GameControllerAllocateTroopsIntegrationTest {
     // Criar jogo de teste
     testGame = new Game();
     testGame.setName("Test Game");
-    testGame.setStatus("SETUP_ALLOCATION"); // Use the enum name
+    testGame.setStatus("SETUP_ALLOCATION");
     testGame.setCreatedAt(java.time.LocalDateTime.now());
     testGame = gameRepository.save(testGame);
 
@@ -218,3 +218,4 @@ class GameControllerAllocateTroopsIntegrationTest {
         .andExpect(status().isBadRequest());
   }
 }
+
