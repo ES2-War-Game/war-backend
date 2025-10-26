@@ -111,7 +111,7 @@ public class ObjectiveInitializerConfig {
             objectiveRepository.save(obj16);
 
             Objective obj17 = new Objective();
-            obj17.setDescription("Eliminar totalmente o jogador com exércitos rosas");
+            obj17.setDescription("Eliminar totalmente o jogador com exércitos roxos");
             obj17.setType("ELIMINATE_PLAYER");
             objectiveRepository.save(obj17);
             

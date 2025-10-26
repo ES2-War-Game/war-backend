@@ -91,7 +91,6 @@ public class GameService {
         
         // Configurando as propriedades do PlayerGame
         creatorPlayerGame.setIsOwner(true);
-        creatorPlayerGame.setIsReady(false);
         creatorPlayerGame.setStillInGame(true); 
 
         // Adicionando a cor
@@ -186,7 +185,6 @@ public class GameService {
         newPlayerGame.setGame(game);
         newPlayerGame.setPlayer(player);
         newPlayerGame.setIsOwner(false);
-        newPlayerGame.setIsReady(false);
         newPlayerGame.setStillInGame(true); 
         
         // Adicionando a cor

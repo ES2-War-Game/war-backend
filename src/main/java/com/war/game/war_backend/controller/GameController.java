@@ -59,7 +59,6 @@ public class GameController {
                 playerGame.getPlayer().getUsername(),
                 playerGame.getColor(),
                 playerGame.getIsOwner(),
-                playerGame.getIsReady(),
                 playerGame.getPlayer().getImageUrl()
             ))
             .collect(Collectors.toList());
@@ -125,7 +124,6 @@ public class GameController {
                 playerGame.getPlayer().getUsername(),
                 playerGame.getColor(),
                 playerGame.getIsOwner(),
-                playerGame.getIsReady(),
                 playerGame.getPlayer().getImageUrl()
             ))
             .collect(Collectors.toList());
@@ -188,7 +186,6 @@ public class GameController {
                 playerGame.getPlayer().getUsername(), 
                 playerGame.getColor(),
                 playerGame.getIsOwner(),
-                playerGame.getIsReady(),
                 playerGame.getPlayer().getImageUrl()
             ))
             .collect(Collectors.toList());

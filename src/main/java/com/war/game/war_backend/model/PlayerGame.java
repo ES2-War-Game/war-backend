@@ -47,9 +47,6 @@ public class PlayerGame {
   @Column(nullable = true, length = 20)
   private String color;
 
-  @Column(name = "is_ready", nullable = false)
-  private Boolean isReady = false;
-
   @Column(name = "turn_order", nullable = true)
   private Integer turnOrder;
 
