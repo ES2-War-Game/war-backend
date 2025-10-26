@@ -218,4 +218,3 @@ class GameControllerAllocateTroopsIntegrationTest {
         .andExpect(status().isBadRequest());
   }
 }
-
