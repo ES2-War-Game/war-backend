@@ -12,6 +12,5 @@ public class PlayerLobbyDtoResponse {
     private String username;
     private String color;
     private boolean isOwner;
-    private boolean isReady;
     private String imageUrl;
 }

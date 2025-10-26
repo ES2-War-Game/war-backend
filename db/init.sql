@@ -73,7 +73,6 @@ CREATE TABLE player_game (
     player_id BIGINT NOT NULL,
     game_id BIGINT NOT NULL,
     color VARCHAR(20) NULL,
-    is_ready BOOLEAN NOT NULL DEFAULT FALSE,
     turn_order INTEGER NULL,
     is_owner BOOLEAN NOT NULL DEFAULT FALSE,
     objective_id BIGINT NULL,

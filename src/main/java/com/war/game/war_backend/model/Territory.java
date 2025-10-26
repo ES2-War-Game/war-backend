@@ -49,6 +49,7 @@ public class Territory {
   @JsonIgnore
   private List<TerritoryBorder> bordersB;
 
+  @JsonIgnore
   public Set<TerritoryBorder> getAllBorders() {
     Set<TerritoryBorder> all = new HashSet<>();
     if (bordersA != null)
@@ -58,6 +59,7 @@ public class Territory {
     return all;
   }
 
+  @JsonIgnore
   public Set<Territory> getNeighborTerritories() {
     Set<Territory> neighbors = new HashSet<>();
     for (TerritoryBorder border : getAllBorders()) {
