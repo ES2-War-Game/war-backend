@@ -111,6 +111,23 @@ public class GameService {
         return gameRepository.findByStatus(GameStatus.LOBBY.name());
     }
 
+    public Game findCurrentGameForPlayer(Player player) {
+        // Busca qualquer jogo ativo do jogador (lobby ou em andamento)
+        List<PlayerGame> activeGames = playerGameRepository.findByPlayerAndStillInGame(player, true);
+        
+        if (activeGames.isEmpty()) {
+            return null;
+        }
+        
+        // Retorna o jogo mais recente (último criado)
+        return activeGames.stream()
+            .map(PlayerGame::getGame)
+            .filter(game -> !GameStatus.FINISHED.name().equals(game.getStatus()) 
+                         && !GameStatus.CANCELED.name().equals(game.getStatus()))
+            .max((g1, g2) -> g1.getCreatedAt().compareTo(g2.getCreatedAt()))
+            .orElse(null);
+    }
+
     @Transactional
     public Game addPlayerToLobby(Long lobbyId, Player player) {
         Game game = gameRepository.findById(lobbyId)
@@ -239,6 +256,88 @@ public class GameService {
             }
         }
         
+        return game;
+    }
+
+    @Transactional
+    public Game removePlayerFromGame(Long gameId, Player player) {
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new RuntimeException("Jogo não encontrado."));
+
+        // Encontra o PlayerGame do jogador
+        PlayerGame playerGame = playerGameRepository.findByGameAndPlayer(game, player)
+                .orElseThrow(() -> new RuntimeException("Jogador não está neste jogo."));
+
+        // Marca o jogador como fora do jogo (stillInGame = false)
+        playerGame.setStillInGame(false);
+        playerGameRepository.save(playerGame);
+
+        // Se era o turno desse jogador, passa para o próximo
+        if (game.getTurnPlayer() != null && 
+            game.getTurnPlayer().getId().equals(playerGame.getId())) {
+            
+            // Busca próximo jogador ativo
+            List<PlayerGame> activePlayers = playerGameRepository.findByGame(game).stream()
+                    .filter(PlayerGame::getStillInGame)
+                    .sorted(Comparator.comparing(PlayerGame::getTurnOrder))
+                    .collect(Collectors.toList());
+
+            if (!activePlayers.isEmpty()) {
+                // Encontra o próximo jogador na ordem
+                int currentIndex = -1;
+                for (int i = 0; i < activePlayers.size(); i++) {
+                    if (activePlayers.get(i).getTurnOrder() > playerGame.getTurnOrder()) {
+                        currentIndex = i;
+                        break;
+                    }
+                }
+                
+                // Se não encontrou ninguém depois, volta para o primeiro
+                if (currentIndex == -1) {
+                    currentIndex = 0;
+                }
+                
+                PlayerGame nextPlayer = activePlayers.get(currentIndex);
+                game.setTurnPlayer(nextPlayer);
+                gameRepository.save(game);
+            } else {
+                // Não há mais jogadores ativos, finaliza o jogo
+                game.setStatus(GameStatus.FINISHED.name());
+                gameRepository.save(game);
+            }
+        }
+
+        // Transfere territórios do jogador que saiu para jogadores ativos
+        List<GameTerritory> playerTerritories = gameTerritoryRepository
+                .findByGameAndOwner(game, playerGame);
+        
+        if (!playerTerritories.isEmpty()) {
+            List<PlayerGame> activePlayers = playerGameRepository.findByGame(game).stream()
+                    .filter(PlayerGame::getStillInGame)
+                    .collect(Collectors.toList());
+            
+            if (!activePlayers.isEmpty()) {
+                // Distribui territórios entre jogadores ativos de forma round-robin
+                int playerIndex = 0;
+                for (GameTerritory territory : playerTerritories) {
+                    territory.setOwner(activePlayers.get(playerIndex));
+                    gameTerritoryRepository.save(territory);
+                    
+                    playerIndex = (playerIndex + 1) % activePlayers.size();
+                }
+            }
+        }
+
+        // Verifica se só restou 1 jogador ativo (vencedor)
+        long activePlayersCount = playerGameRepository.findByGame(game).stream()
+                .filter(PlayerGame::getStillInGame)
+                .count();
+        
+        if (activePlayersCount == 1) {
+            game.setStatus(GameStatus.FINISHED.name());
+            gameRepository.save(game);
+        }
+
         return game;
     }
 

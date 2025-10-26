@@ -19,4 +19,6 @@ public interface PlayerGameRepository extends JpaRepository<PlayerGame, Long> {
     Optional<PlayerGame> findByGame_IdAndPlayer_Id(Long gameId, Long playerId);
     
     List<PlayerGame> findByPlayerAndGame_Status(Player player, String status);
+    
+    List<PlayerGame> findByPlayerAndStillInGame(Player player, Boolean stillInGame);
 }
