@@ -2,6 +2,8 @@ package com.war.game.war_backend.model;
 
 import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -14,12 +16,19 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "player")
-@Data
+@Getter
+@Setter
+@ToString(callSuper = true)
+@EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
 @AllArgsConstructor
 public class Player {
@@ -45,10 +54,13 @@ public class Player {
   @JoinTable(name = "player_role", 
              joinColumns = @JoinColumn(name = "player_id"), 
              inverseJoinColumns = @JoinColumn(name = "role_id"))
+  @EqualsAndHashCode.Exclude
   private Set<Role> roles;
 
   // Relacionamento com PlayerGame
   @OneToMany(mappedBy = "player")
+  @JsonIgnore
+  @EqualsAndHashCode.Exclude
   private Set<PlayerGame> playerGames;
 
   public Player(String username, String email, String password) {

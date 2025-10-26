@@ -2,10 +2,14 @@ package com.war.game.war_backend.controller;
 
 import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
 import com.war.game.war_backend.controller.dto.request.LobbyCreationRequestDto;
+import com.war.game.war_backend.controller.dto.response.GameLobbyDetailsDto;
+import com.war.game.war_backend.controller.dto.response.GameStateResponseDto;
 import com.war.game.war_backend.controller.dto.response.LobbyCreationResponseDto;
 import com.war.game.war_backend.controller.dto.response.LobbyListResponseDto;
+import com.war.game.war_backend.controller.dto.response.PlayerLobbyDtoResponse;
 import com.war.game.war_backend.model.Game;
 import com.war.game.war_backend.model.Player;
+import com.war.game.war_backend.model.enums.GameStatus;
 import com.war.game.war_backend.services.GameService;
 import com.war.game.war_backend.services.PlayerService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -45,14 +49,40 @@ public class GameController {
     @Operation(summary = "Cria um novo lobby.", description = "O jogador autenticado torna-se automaticamente o dono do lobby.")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<LobbyCreationResponseDto> createLobby(@Valid @RequestBody LobbyCreationRequestDto request, Principal principal) {
-        // Obtém o nome de usuário do token JWT
+    public ResponseEntity<LobbyCreationResponseDto> createLobby(@Valid @org.springframework.web.bind.annotation.RequestBody LobbyCreationRequestDto request, Principal principal) {
         String username = principal.getName();
         Player creator = playerService.getPlayerByUsername(username);
 
         Game newGame = gameService.createNewLobby(request.getLobbyName(), creator);
 
-        LobbyCreationResponseDto response = new LobbyCreationResponseDto(newGame.getId(), newGame.getName());
+        List<PlayerLobbyDtoResponse> playerDtos = newGame.getPlayerGames().stream()
+            .map(playerGame -> new PlayerLobbyDtoResponse(
+                playerGame.getId(),
+                playerGame.getPlayer().getUsername(),
+                playerGame.getColor(),
+                playerGame.getIsOwner(),
+                playerGame.getPlayer().getImageUrl()
+            ))
+            .collect(Collectors.toList());
+
+        LobbyCreationResponseDto response = new LobbyCreationResponseDto(
+            newGame.getId(), 
+            newGame.getName(),
+            playerDtos
+        );
+
+        // Notifica todos os clientes sobre a atualização da lista de lobbies
+        List<Game> allLobbies = gameService.findAllLobbies();
+        List<LobbyListResponseDto> lobbyListDtos = allLobbies.stream()
+            .map(lobby -> new LobbyListResponseDto(
+                lobby.getId(),
+                lobby.getName(),
+                lobby.getStatus(),
+                lobby.getPlayerGames().size()
+            ))
+            .collect(Collectors.toList());
+        
+        messagingTemplate.convertAndSend("/topic/lobbies/list", lobbyListDtos);
 
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
@@ -68,37 +98,105 @@ public class GameController {
             .map(lobby -> new LobbyListResponseDto(
                 lobby.getId(),
                 lobby.getName(),
-                lobby.getStatus()
+                lobby.getStatus(),
+                lobby.getPlayerGames().size() 
             ))
             .collect(Collectors.toList());
 
         return ResponseEntity.ok(lobbyDtos);
     }
 
+    @GetMapping("/current-game")
+    @Operation(summary = "Retorna o jogo/lobby ativo do jogador.", 
+               description = "Retorna o jogo em que o jogador está participando (seja lobby ou partida em andamento). Retorna 404 se não estiver em nenhum jogo.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> getCurrentGame(Principal principal) {
+        String username = principal.getName();
+        
+        try {
+            Player player = playerService.getPlayerByUsername(username);
+            Game currentGame = gameService.findCurrentGameForPlayer(player);
+            
+            if (currentGame == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Você não está em nenhum jogo no momento.");
+            }
+            
+            // Se for lobby, retorna informações básicas
+            if (GameStatus.LOBBY.name().equals(currentGame.getStatus())) {
+                List<PlayerLobbyDtoResponse> playerDtos = currentGame.getPlayerGames().stream()
+                    .map(pg -> new PlayerLobbyDtoResponse(
+                        pg.getId(),
+                        pg.getPlayer().getUsername(),
+                        pg.getColor(),
+                        pg.getIsOwner(),
+                        pg.getPlayer().getImageUrl()
+                    ))
+                    .collect(Collectors.toList());
+                
+                GameLobbyDetailsDto lobbyDetails = new GameLobbyDetailsDto(currentGame, playerDtos);
+                return ResponseEntity.ok(lobbyDetails);
+            }
+            
+            // Se for jogo ativo, retorna estado completo
+            GameStateResponseDto gameState = convertToGameStateDto(currentGame);
+            return ResponseEntity.ok(gameState);
+            
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @PostMapping("/join/{lobbyId}")
     @Operation(summary = "Entra em um lobby existente.", description = "Adiciona o jogador autenticado ao lobby especificado. Envia notificação WebSocket.")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<Player>> joinLobby(
+    public ResponseEntity<GameLobbyDetailsDto> joinLobby(
             @Parameter(description = "ID da partida (lobby) que o jogador deseja entrar.") 
             @PathVariable Long lobbyId, 
             Principal principal) {
+        
         String username = principal.getName();
         Player player = playerService.getPlayerByUsername(username);
 
         Game updatedLobby = gameService.addPlayerToLobby(lobbyId, player);
         
-        // Envia a lista atualizada de jogadores para todos que estão no lobby.
-        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId, updatedLobby.getPlayers());
+        List<PlayerLobbyDtoResponse> playerDtos = updatedLobby.getPlayerGames().stream()
+            .map(playerGame -> new PlayerLobbyDtoResponse(
+                playerGame.getId(),
+                playerGame.getPlayer().getUsername(),
+                playerGame.getColor(),
+                playerGame.getIsOwner(),
+                playerGame.getPlayer().getImageUrl()
+            ))
+            .collect(Collectors.toList());
 
-        return ResponseEntity.ok(updatedLobby.getPlayers());
+        GameLobbyDetailsDto responseDto = new GameLobbyDetailsDto(updatedLobby, playerDtos);
+
+        // Envia notificação WebSocket com o sufixo /state
+        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId + "/state", playerDtos);
+        
+        // Notifica sobre a atualização da lista global de lobbies (contagem de jogadores)
+        List<Game> allLobbies = gameService.findAllLobbies();
+        List<LobbyListResponseDto> lobbyListDtos = allLobbies.stream()
+            .map(lobby -> new LobbyListResponseDto(
+                lobby.getId(),
+                lobby.getName(),
+                lobby.getStatus(),
+                lobby.getPlayerGames().size()
+            ))
+            .collect(Collectors.toList());
+        messagingTemplate.convertAndSend("/topic/lobbies/list", lobbyListDtos);
+
+        return ResponseEntity.ok(responseDto);
     }
 
     @PostMapping("/leave/{lobbyId}")
     @Operation(summary = "Sai de um lobby.", description = "Remove o jogador autenticado do lobby. Se o dono sair, a posse é transferida ou o lobby é excluído.")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<Player>> leaveLobby(
+    public ResponseEntity<List<PlayerLobbyDtoResponse>> leaveLobby(
             @Parameter(description = "ID da partida (lobby) que o jogador deseja sair.") 
             @PathVariable Long lobbyId, 
             Principal principal) {
@@ -108,12 +206,73 @@ public class GameController {
         Game updatedLobby = gameService.removePlayerFromLobby(lobbyId, player);
 
         if (updatedLobby == null) {
+            // Envia notificação WebSocket com o sufixo /state (lobby excluído)
+            messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId + "/state", List.of());
+            
+            // Notifica sobre a atualização da lista global de lobbies
+            List<Game> allLobbies = gameService.findAllLobbies();
+            List<LobbyListResponseDto> lobbyListDtos = allLobbies.stream()
+                .map(lobby -> new LobbyListResponseDto(
+                    lobby.getId(),
+                    lobby.getName(),
+                    lobby.getStatus(),
+                    lobby.getPlayerGames().size()
+                ))
+                .collect(Collectors.toList());
+            messagingTemplate.convertAndSend("/topic/lobbies/list", lobbyListDtos);
+            
             return ResponseEntity.ok(List.of()); 
         }
 
-        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId, updatedLobby.getPlayers());
+        List<PlayerLobbyDtoResponse> playerDtos = updatedLobby.getPlayerGames().stream()
+            .map(playerGame -> new PlayerLobbyDtoResponse(
+                playerGame.getId(), 
+                playerGame.getPlayer().getUsername(), 
+                playerGame.getColor(),
+                playerGame.getIsOwner(),
+                playerGame.getPlayer().getImageUrl()
+            ))
+            .collect(Collectors.toList());
 
-        return ResponseEntity.ok(updatedLobby.getPlayers());
+        // Envia notificação WebSocket com o sufixo /state
+        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId + "/state", playerDtos);
+        
+        // Notifica sobre a atualização da lista global de lobbies
+        List<Game> allLobbies = gameService.findAllLobbies();
+        List<LobbyListResponseDto> lobbyListDtos = allLobbies.stream()
+            .map(lobby -> new LobbyListResponseDto(
+                lobby.getId(),
+                lobby.getName(),
+                lobby.getStatus(),
+                lobby.getPlayerGames().size()
+            ))
+            .collect(Collectors.toList());
+        messagingTemplate.convertAndSend("/topic/lobbies/list", lobbyListDtos);
+
+        return ResponseEntity.ok(playerDtos);
+    }
+
+    @PostMapping("/leave-game/{gameId}")
+    @Operation(summary = "Sai de um jogo já iniciado.", description = "Remove o jogador de um jogo em andamento. O turno dele será pulado e seus territórios redistribuídos.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<GameStateResponseDto> leaveGame(
+            @Parameter(description = "ID do jogo que o jogador deseja sair.") 
+            @PathVariable Long gameId, 
+            Principal principal) {
+        
+        String username = principal.getName();
+        Player player = playerService.getPlayerByUsername(username);
+
+        Game updatedGame = gameService.removePlayerFromGame(gameId, player);
+
+        // Converte para DTO
+        GameStateResponseDto gameStateDto = convertToGameStateDto(updatedGame);
+
+        // Notifica todos os jogadores via WebSocket
+        messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", gameStateDto);
+
+        return ResponseEntity.ok(gameStateDto);
     }
     
     // --- GAMEPLAY MANAGEMENT ---
@@ -131,8 +290,10 @@ public class GameController {
 
         try {
             Game startedGame = gameService.startGame(lobbyId, username);
-            messagingTemplate.convertAndSend("/topic/game/" + lobbyId + "/state", startedGame);
-            return ResponseEntity.ok(startedGame);
+            GameStateResponseDto gameState = convertToGameStateDto(startedGame);
+            
+            messagingTemplate.convertAndSend("/topic/game/" + lobbyId + "/state", gameState);
+            return ResponseEntity.ok(gameState);
 
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -153,8 +314,10 @@ public class GameController {
         
         try {
             Game updatedGame = gameService.allocateTroops(gameId, username, territoryId, count);
-            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", updatedGame);
-            return ResponseEntity.ok(updatedGame);
+            GameStateResponseDto gameState = convertToGameStateDto(updatedGame);
+            
+            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", gameState);
+            return ResponseEntity.ok(gameState);
 
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -174,10 +337,11 @@ public class GameController {
         
         try {
             Game updatedGame = gameService.startNextTurn(gameId, username);
+            GameStateResponseDto gameState = convertToGameStateDto(updatedGame);
 
-            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", updatedGame);
+            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", gameState);
 
-            return ResponseEntity.ok(updatedGame);
+            return ResponseEntity.ok(gameState);
 
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -209,9 +373,10 @@ public class GameController {
         
         try {
             Game updatedGame = gameService.tradeCardsForReinforcements(gameId, username, playerCardIds);
+            GameStateResponseDto gameState = convertToGameStateDto(updatedGame);
 
-            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", updatedGame);
-            return ResponseEntity.ok(updatedGame);
+            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", gameState);
+            return ResponseEntity.ok(gameState);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -236,12 +401,101 @@ public class GameController {
         
         try {
             Game updatedGame = gameService.attackTerritory(gameId, username, attackRequest);
+            GameStateResponseDto gameState = convertToGameStateDto(updatedGame);
             
-            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", updatedGame);
-            return ResponseEntity.ok(updatedGame);
+            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", gameState);
+            return ResponseEntity.ok(gameState);
             
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    // Método auxiliar para converter Game em GameStateResponseDto (evita referências circulares)
+    private GameStateResponseDto convertToGameStateDto(Game game) {
+        GameStateResponseDto dto = new GameStateResponseDto();
+        dto.setId(game.getId());
+        dto.setStatus(game.getStatus());
+        dto.setCreatedAt(game.getCreatedAt());
+        dto.setName(game.getName());
+        dto.setCardSetExchangeCount(game.getCardSetExchangeCount());
+        
+        // Converter turnPlayer
+        if (game.getTurnPlayer() != null) {
+            dto.setTurnPlayer(convertToPlayerGameDto(game.getTurnPlayer()));
+        }
+        
+        // Converter winner
+        if (game.getWinner() != null) {
+            dto.setWinner(convertToPlayerGameDto(game.getWinner()));
+        }
+        
+        // Converter playerGames
+        if (game.getPlayerGames() != null) {
+            dto.setPlayerGames(game.getPlayerGames().stream()
+                .map(this::convertToPlayerGameDto)
+                .collect(Collectors.toList()));
+        }
+        
+        // Converter gameTerritories
+        if (game.getGameTerritories() != null) {
+            dto.setGameTerritories(game.getGameTerritories().stream()
+                .map(this::convertToGameTerritoryDto)
+                .collect(Collectors.toList()));
+        }
+        
+        return dto;
+    }
+    
+    private GameStateResponseDto.PlayerGameDto convertToPlayerGameDto(com.war.game.war_backend.model.PlayerGame pg) {
+        GameStateResponseDto.PlayerGameDto dto = new GameStateResponseDto.PlayerGameDto();
+        dto.setId(pg.getId());
+        dto.setTurnOrder(pg.getTurnOrder());
+        dto.setColor(pg.getColor());
+        dto.setIsOwner(pg.getIsOwner());
+        dto.setUnallocatedArmies(pg.getUnallocatedArmies());
+        dto.setConqueredTerritoryThisTurn(pg.getConqueredTerritoryThisTurn());
+        dto.setStillInGame(pg.getStillInGame());
+        
+        if (pg.getObjective() != null) {
+            GameStateResponseDto.ObjectiveDto objDto = new GameStateResponseDto.ObjectiveDto();
+            objDto.setId(pg.getObjective().getId());
+            objDto.setDescription(pg.getObjective().getDescription());
+            objDto.setType(pg.getObjective().getType());
+            dto.setObjective(objDto);
+        }
+        
+        if (pg.getPlayer() != null) {
+            GameStateResponseDto.PlayerDto playerDto = new GameStateResponseDto.PlayerDto();
+            playerDto.setId(pg.getPlayer().getId());
+            playerDto.setUsername(pg.getPlayer().getUsername());
+            playerDto.setImageUrl(pg.getPlayer().getImageUrl());
+            dto.setPlayer(playerDto);
+        }
+        
+        return dto;
+    }
+    
+    private GameStateResponseDto.GameTerritoryDto convertToGameTerritoryDto(com.war.game.war_backend.model.GameTerritory gt) {
+        GameStateResponseDto.GameTerritoryDto dto = new GameStateResponseDto.GameTerritoryDto();
+        dto.setId(gt.getId());
+        dto.setStaticArmies(gt.getStaticArmies());
+        dto.setMovedInArmies(gt.getMovedInArmies());
+        dto.setUnallocatedArmies(gt.getUnallocatedArmies());
+        
+        // Apenas o ID do owner, não o objeto completo
+        if (gt.getOwner() != null) {
+            dto.setOwnerId(gt.getOwner().getId());
+        }
+        
+        if (gt.getTerritory() != null) {
+            GameStateResponseDto.TerritoryDto terrDto = new GameStateResponseDto.TerritoryDto();
+            terrDto.setId(gt.getTerritory().getId());
+            terrDto.setName(gt.getTerritory().getName());
+            terrDto.setContinent(gt.getTerritory().getContinent());
+            dto.setTerritory(terrDto);
+        }
+        
+        return dto;
     }
 }

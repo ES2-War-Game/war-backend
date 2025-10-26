@@ -35,14 +35,8 @@ public class TroopMovement {
     @Column(nullable = false)
     private Integer numberOfTroops;
 
-    @Column(nullable = false)
-    private String status; // IN_PROGRESS, COMPLETED, CANCELLED
-
-    @Column(nullable = false)
-    private LocalDateTime startTime;
-
-    @Column(nullable = false)
-    private LocalDateTime estimatedArrivalTime;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
 
     @ManyToOne
     @JoinColumn(name = "game_id")

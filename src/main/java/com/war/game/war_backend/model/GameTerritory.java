@@ -1,5 +1,7 @@
 package com.war.game.war_backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -26,6 +28,7 @@ public class GameTerritory {
 
   @ManyToOne
   @JoinColumn(name = "game_id", referencedColumnName = "pk_id")
+  @JsonIgnore
   private Game game;
 
   @ManyToOne
@@ -34,37 +37,39 @@ public class GameTerritory {
 
   @ManyToOne
   @JoinColumn(name = "player_game_id", referencedColumnName = "pk_id", nullable = true)
+  @JsonIgnore
   private PlayerGame owner;
 
-  @Column(nullable = false)
-  private Integer armies = 0;
+  @Column(name = "static_armies", nullable = false)
+  private Integer staticArmies = 0;
 
-  @Column(name = "moved_armies", nullable = false)
-  private Integer movedArmies = 0;
+  @Column(name = "moved_in_armies", nullable = false)
+  private Integer movedInArmies = 0;
 
-  @Column(name = "available_armies", nullable = false)
-  private Integer availableArmies = 0;
-
-  public void setArmies(Integer armies) {
-    this.armies = armies;
-    this.availableArmies = armies - this.movedArmies;
-  }
+  @Column(name = "unallocated_armies", nullable = false)
+  private Integer unallocatedArmies = 0;
 
   public Integer getArmies() {
-    return this.armies;
+    return this.staticArmies + this.movedInArmies;
   }
 
-  public void updateAvailableArmies() {
-    this.availableArmies = this.armies - this.movedArmies;
+  public void consolidateArmies() {
+    // Soma as tropas movidas às tropas estáticas e zera as tropas movidas
+    if (this.staticArmies == null) this.staticArmies = 0;
+    if (this.movedInArmies == null) this.movedInArmies = 0;
+    this.staticArmies = this.staticArmies + this.movedInArmies;
+    this.movedInArmies = 0;
   }
 
-  public void markTroopsAsMoved(Integer numberOfTroops) {
-    this.movedArmies += numberOfTroops;
-    this.updateAvailableArmies();
+  public void addUnallocatedArmies(Integer armies) {
+    this.unallocatedArmies += armies;
   }
 
-  public void resetMovedTroops() {
-    this.movedArmies = 0;
-    this.updateAvailableArmies();
+  public void allocateArmies(Integer armies) {
+    if (armies > this.unallocatedArmies) {
+        throw new IllegalArgumentException("Cannot allocate more armies than available");
+    }
+    this.staticArmies += armies;
+    this.unallocatedArmies -= armies;
   }
 }

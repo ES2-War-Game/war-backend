@@ -13,13 +13,19 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.persistence.*;
-import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "player_game")
-@Data
+@Getter
+@Setter
+@ToString(callSuper = true)
+@EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
 @AllArgsConstructor
 public class PlayerGame {
@@ -41,9 +47,6 @@ public class PlayerGame {
   @Column(nullable = true, length = 20)
   private String color;
 
-  @Column(name = "is_ready", nullable = false)
-  private Boolean isReady = false;
-
   @Column(name = "turn_order", nullable = true)
   private Integer turnOrder;
 
@@ -55,9 +58,13 @@ public class PlayerGame {
   private Objective objective;
 
   @OneToMany(mappedBy = "playerGame")
+  @JsonIgnore
+  @EqualsAndHashCode.Exclude
   private Set<PlayerCard> playerCards;
 
   @OneToMany(mappedBy = "owner")
+  @JsonIgnore
+  @EqualsAndHashCode.Exclude
   private Set<GameTerritory> ownedTerritories;
 
   @Column(name = "unallocated_armies", nullable = false)
@@ -68,4 +75,10 @@ public class PlayerGame {
 
   @Column(name = "still_in_game", nullable = false)
   private Boolean stillInGame = true;
+
+  @Column(name = "username", nullable = false, length = 50)
+    private String username;
+
+  @Column(name = "image_url", nullable = true, length = 255)
+  private String imageUrl;
 }

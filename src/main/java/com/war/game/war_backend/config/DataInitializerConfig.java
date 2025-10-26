@@ -16,6 +16,8 @@ import com.war.game.war_backend.model.Player;
 import com.war.game.war_backend.model.PlayerGame;
 import com.war.game.war_backend.model.Role;
 import com.war.game.war_backend.model.Territory;
+import com.war.game.war_backend.model.enums.GameConstants;
+import com.war.game.war_backend.model.enums.GameStatus;
 import com.war.game.war_backend.repository.GameRepository;
 import com.war.game.war_backend.repository.GameTerritoryRepository;
 import com.war.game.war_backend.repository.PlayerGameRepository;
@@ -47,47 +49,64 @@ public class DataInitializerConfig {
 
             // Create test user if it doesn't exist
             if (playerRepository.findByUsername("testuser").isEmpty()) {
-                // Create player
+                
+                // 1. Create player
                 Player player = new Player("testuser", "test@example.com", passwordEncoder.encode("test123"));
+                
+                // Garantindo que o campo imageUrl (se for not null no Player) seja setado
+                player.setImageUrl("https://via.placeholder.com/150/ff0000?text=T"); 
+                
                 Set<Role> roles = new HashSet<>();
                 roles.add(userRole);
                 player.setRoles(roles);
                 player = playerRepository.save(player);
 
-                // Create a new game for testing
+                // 2. Create a new game for testing
                 Game game = new Game();
                 game.setName("Test Game");
-                game.setStatus("ACTIVE");
+                game.setStatus(GameStatus.IN_PROGRESS.name()); 
                 game.setCreatedAt(LocalDateTime.now());
                 game.setCardSetExchangeCount(0);
                 game = gameRepository.save(game);
 
-                // Create PlayerGame entry
+                // 3. Create PlayerGame entry
                 PlayerGame playerGame = new PlayerGame();
                 playerGame.setGame(game);
                 playerGame.setPlayer(player);
-                playerGame.setColor("RED");
+                
+                playerGame.setUsername(player.getUsername());
+                playerGame.setImageUrl(player.getImageUrl());
+                playerGame.setColor(GameConstants.AVAILABLE_COLORS.get(0));
+                // -------------------------------------
+                
+                playerGame.setIsOwner(true); 
+                playerGame.setStillInGame(true); 
+                
                 playerGame = playerGameRepository.save(playerGame);
                 
-                // Add some initial territories with armies
+                // 4. Add some initial territories with armies
                 Territory territory1 = territoryRepository.findByName("BRASIL")
                     .orElseThrow(() -> new RuntimeException("Territory 'BRASIL' not found"));
                 Territory territory2 = territoryRepository.findByName("ARGENTINA")
                     .orElseThrow(() -> new RuntimeException("Territory 'ARGENTINA' not found"));
 
-                // Create GameTerritory entries with initial armies
+                // 5. Create GameTerritory entries with initial armies
                 GameTerritory gameTerritory1 = new GameTerritory();
                 gameTerritory1.setTerritory(territory1);
                 gameTerritory1.setGame(game);
                 gameTerritory1.setOwner(playerGame);
-                gameTerritory1.setArmies(10);
+                gameTerritory1.setStaticArmies(10);  // Todas as tropas iniciais são estáticas
+                gameTerritory1.setMovedInArmies(0);  // Nenhuma tropa movida inicialmente
+                gameTerritory1.setUnallocatedArmies(0);  // Nenhuma tropa não alocada
                 gameTerritoryRepository.save(gameTerritory1);
 
                 GameTerritory gameTerritory2 = new GameTerritory();
                 gameTerritory2.setTerritory(territory2);
                 gameTerritory2.setGame(game);
                 gameTerritory2.setOwner(playerGame);
-                gameTerritory2.setArmies(5);
+                gameTerritory2.setStaticArmies(5);   // Todas as tropas iniciais são estáticas
+                gameTerritory2.setMovedInArmies(0);  // Nenhuma tropa movida inicialmente
+                gameTerritory2.setUnallocatedArmies(0);  // Nenhuma tropa não alocada
                 gameTerritoryRepository.save(gameTerritory2);
             }
         };

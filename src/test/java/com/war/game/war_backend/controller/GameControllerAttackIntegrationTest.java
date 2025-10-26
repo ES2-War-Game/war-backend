@@ -105,11 +105,11 @@ class GameControllerAttackIntegrationTest {
         .orElseThrow(() -> new RuntimeException("Território ARGENTINA não foi inicializado"));
 
     // Verificar se existe fronteira entre os territórios
-    TerritoryBorder border = territoryBorderRepository.findByTerritoryIds(
+    territoryBorderRepository.findByTerritoryIds(
         sourceTerritory.getId(),
         targetTerritory.getId()).orElseGet(() -> {
           // Se não existir, criar uma fronteira para o teste
-          TerritoryBorder newBorder = new TerritoryBorder();
+          var newBorder = new TerritoryBorder();
           newBorder.setTerritoryA(sourceTerritory);
           newBorder.setTerritoryB(targetTerritory);
           return territoryBorderRepository.save(newBorder);
@@ -118,7 +118,7 @@ class GameControllerAttackIntegrationTest {
     // Criar jogo de teste
     testGame = new Game();
     testGame.setName("Test Attack Game");
-    testGame.setStatus("In Game - Attack");
+    testGame.setStatus("ATTACK"); // Use exatamente o nome da constante do enum GameStatus
     testGame.setCreatedAt(java.time.LocalDateTime.now());
     testGame = gameRepository.save(testGame);
 
@@ -126,6 +126,7 @@ class GameControllerAttackIntegrationTest {
     attackerPlayerGame = new PlayerGame();
     attackerPlayerGame.setGame(testGame);
     attackerPlayerGame.setPlayer(attacker);
+    attackerPlayerGame.setUsername(attacker.getUsername());
     attackerPlayerGame.setTurnOrder(1);
     attackerPlayerGame.setUnallocatedArmies(0);
     attackerPlayerGame.setConqueredTerritoryThisTurn(false);
@@ -136,6 +137,7 @@ class GameControllerAttackIntegrationTest {
     defenderPlayerGame = new PlayerGame();
     defenderPlayerGame.setGame(testGame);
     defenderPlayerGame.setPlayer(defender);
+    defenderPlayerGame.setUsername(defender.getUsername());
     defenderPlayerGame.setTurnOrder(2);
     defenderPlayerGame.setUnallocatedArmies(0);
     defenderPlayerGame.setConqueredTerritoryThisTurn(false);
@@ -154,7 +156,8 @@ class GameControllerAttackIntegrationTest {
     sourceGameTerritory.setGame(testGame);
     sourceGameTerritory.setTerritory(sourceTerritory);
     sourceGameTerritory.setOwner(attackerPlayerGame);
-    sourceGameTerritory.setArmies(10); // 10 tropas no território do atacante
+    sourceGameTerritory.setStaticArmies(10); // 10 tropas estáticas no território do atacante
+    sourceGameTerritory.setMovedInArmies(0); // Nenhuma tropa movida no território do atacante
     sourceGameTerritory = gameTerritoryRepository.save(sourceGameTerritory);
 
     // Criar GameTerritory para o território alvo (pertence ao defensor)
@@ -162,7 +165,8 @@ class GameControllerAttackIntegrationTest {
     targetGameTerritory.setGame(testGame);
     targetGameTerritory.setTerritory(targetTerritory);
     targetGameTerritory.setOwner(defenderPlayerGame);
-    targetGameTerritory.setArmies(3); // 3 tropas no território do defensor
+    targetGameTerritory.setStaticArmies(3); // 3 tropas estáticas no território do defensor
+    targetGameTerritory.setMovedInArmies(0); // Nenhuma tropa movida no território do defensor
     targetGameTerritory = gameTerritoryRepository.save(targetGameTerritory);
 
     // Gerar token JWT para o atacante
@@ -190,7 +194,7 @@ class GameControllerAttackIntegrationTest {
         .content(objectMapper.writeValueAsString(attackRequest)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(testGame.getId()))
-        .andExpect(jsonPath("$.status").value("In Game - Attack"));
+        .andExpect(jsonPath("$.status").value("ATTACK"));
   }
 
   @Test
@@ -272,7 +276,8 @@ class GameControllerAttackIntegrationTest {
   @Test
   void attackTerritory_WithInsufficientArmies_ShouldReturnBadRequest() throws Exception {
     // Arrange - Reduzir tropas no território de origem
-    sourceGameTerritory.setArmies(3);
+    sourceGameTerritory.setStaticArmies(3);
+    sourceGameTerritory.setMovedInArmies(0);
     gameTerritoryRepository.save(sourceGameTerritory);
 
     AttackRequestDto attackRequest = new AttackRequestDto();

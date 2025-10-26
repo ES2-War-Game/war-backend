@@ -1,5 +1,7 @@
 package com.war.game.war_backend.model;
 
+import com.war.game.war_backend.model.enums.CardType;
+
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;

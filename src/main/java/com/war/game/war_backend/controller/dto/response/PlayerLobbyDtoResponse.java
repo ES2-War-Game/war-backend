@@ -7,10 +7,10 @@ import lombok.AllArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class LobbyListResponseDto {
-
+public class PlayerLobbyDtoResponse {
     private Long id;
-    private String name;
-    private String status;
-    private int playerCount; 
+    private String username;
+    private String color;
+    private boolean isOwner;
+    private String imageUrl;
 }

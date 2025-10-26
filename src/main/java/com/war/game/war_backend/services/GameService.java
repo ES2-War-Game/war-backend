@@ -1,6 +1,25 @@
 package com.war.game.war_backend.services;
 
-import com.war.game.war_backend.model.CardType;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
+import com.war.game.war_backend.controller.dto.response.GameResultResponse;
+import com.war.game.war_backend.events.GameOverEvent;
+import com.war.game.war_backend.model.Card;
 import com.war.game.war_backend.model.Game;
 import com.war.game.war_backend.model.GameTerritory;
 import com.war.game.war_backend.model.Objective;
@@ -8,32 +27,19 @@ import com.war.game.war_backend.model.Player;
 import com.war.game.war_backend.model.PlayerCard;
 import com.war.game.war_backend.model.PlayerGame;
 import com.war.game.war_backend.model.Territory;
-import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
-import com.war.game.war_backend.model.Card;
+import com.war.game.war_backend.model.enums.CardType;
+import com.war.game.war_backend.model.enums.GameConstants;
+import com.war.game.war_backend.model.enums.GameStatus;
 import com.war.game.war_backend.repository.CardRepository;
 import com.war.game.war_backend.repository.GameRepository;
+import com.war.game.war_backend.repository.GameTerritoryRepository;
+import com.war.game.war_backend.repository.ObjectiveRepository;
+import com.war.game.war_backend.repository.PlayerCardRepository;
 import com.war.game.war_backend.repository.PlayerGameRepository;
 import com.war.game.war_backend.repository.TerritoryBorderRepository;
 import com.war.game.war_backend.repository.TerritoryRepository;
-import com.war.game.war_backend.repository.ObjectiveRepository;
-import com.war.game.war_backend.repository.PlayerCardRepository;
-import com.war.game.war_backend.repository.GameTerritoryRepository;
 
 import lombok.RequiredArgsConstructor;
-
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.Random;
-import java.util.stream.Collectors;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -47,6 +53,7 @@ public class GameService {
     private final PlayerCardRepository playerCardRepository;
     private final CardRepository cardRepository;
     private final TerritoryBorderRepository territoryBorderRepository;
+    private final WinConditionService winConditionService;
 
     private final SimpMessagingTemplate messagingTemplate; 
     private final PlayerService playerService;
@@ -63,28 +70,62 @@ public class GameService {
 
     // LOBBY =======================================
 
+    @Transactional 
     public Game createNewLobby(String lobbyName, Player creator) {
         Game newGame = new Game();
         newGame.setName(lobbyName);
-        newGame.setStatus("Lobby"); // O status inicial é "Lobby"
+        newGame.setStatus(GameStatus.LOBBY.name()); 
         newGame.setCreatedAt(LocalDateTime.now());
 
         gameRepository.save(newGame);
 
+        // --- LÓGICA DE ATRIBUIÇÃO DE COR E DADOS DO JOGADOR ---
+        
+        // O criador do lobby é o primeiro jogador, atribuímos a primeira cor da lista
+        String assignedColor = GameConstants.AVAILABLE_COLORS.get(0); 
+        
         // Cria a entidade PlayerGame para o criador
         PlayerGame creatorPlayerGame = new PlayerGame();
         creatorPlayerGame.setGame(newGame);
         creatorPlayerGame.setPlayer(creator);
+        
+        // Configurando as propriedades do PlayerGame
         creatorPlayerGame.setIsOwner(true);
-        creatorPlayerGame.setIsReady(false);
+        creatorPlayerGame.setStillInGame(true); 
+
+        // Adicionando a cor
+        creatorPlayerGame.setColor(assignedColor); 
+        
+        // Copiando as propriedades do Player para o PlayerGame
+        creatorPlayerGame.setUsername(creator.getUsername()); 
+        creatorPlayerGame.setImageUrl(creator.getImageUrl()); 
 
         playerGameRepository.save(creatorPlayerGame);
+
+        newGame.getPlayerGames().add(creatorPlayerGame);
 
         return newGame;
     }
 
     public List<Game> findAllLobbies() {
-        return gameRepository.findByStatus("Lobby");
+        return gameRepository.findByStatus(GameStatus.LOBBY.name());
+    }
+
+    public Game findCurrentGameForPlayer(Player player) {
+        // Busca qualquer jogo ativo do jogador (lobby ou em andamento)
+        List<PlayerGame> activeGames = playerGameRepository.findByPlayerAndStillInGame(player, true);
+        
+        if (activeGames.isEmpty()) {
+            return null;
+        }
+        
+        // Retorna o jogo mais recente (último criado)
+        return activeGames.stream()
+            .map(PlayerGame::getGame)
+            .filter(game -> !GameStatus.FINISHED.name().equals(game.getStatus()) 
+                         && !GameStatus.CANCELED.name().equals(game.getStatus()))
+            .max((g1, g2) -> g1.getCreatedAt().compareTo(g2.getCreatedAt()))
+            .orElse(null);
     }
 
     @Transactional
@@ -92,52 +133,212 @@ public class GameService {
         Game game = gameRepository.findById(lobbyId)
                 .orElseThrow(() -> new RuntimeException("Lobby não encontrado."));
 
-        // Verifica se o jogador já está no lobby
+        if (!GameStatus.LOBBY.name().equals(game.getStatus())) {
+            throw new RuntimeException("Não é possível entrar. O jogo já foi iniciado ou tem status inválido.");
+        }
+        
+        // Remove o jogador de outros lobbies ativos (status LOBBY) ANTES de verificar se já está no lobby atual
+        List<PlayerGame> activeLobbies = playerGameRepository.findByPlayerAndGame_Status(player, GameStatus.LOBBY.name());
+        for (PlayerGame activeLobbyPlayerGame : activeLobbies) {
+            Game activeLobby = activeLobbyPlayerGame.getGame();
+            
+            // Pula o lobby atual (que o jogador está tentando entrar)
+            if (activeLobby.getId().equals(lobbyId)) {
+                continue;
+            }
+            
+            // Remove o jogador do lobby anterior
+            activeLobby.getPlayerGames().remove(activeLobbyPlayerGame);
+            playerGameRepository.delete(activeLobbyPlayerGame);
+            
+            // Se o jogador era dono, transfere a propriedade ou deleta o lobby
+            if (activeLobbyPlayerGame.getIsOwner()) {
+                Set<PlayerGame> remainingPlayers = activeLobby.getPlayerGames();
+                
+                if (!remainingPlayers.isEmpty()) {
+                    // Define o próximo jogador como novo dono
+                    List<PlayerGame> remainingPlayersList = new ArrayList<>(remainingPlayers);
+                    PlayerGame newOwner = remainingPlayersList.get(0);
+                    newOwner.setIsOwner(true);
+                    playerGameRepository.save(newOwner);
+                } else {
+                    // Se não houver mais jogadores, exclui o lobby
+                    gameRepository.delete(activeLobby);
+                }
+            }
+        }
+        
+        // Verifica se o jogador já está neste lobby específico (após a limpeza de outros lobbies)
+        // Se já estiver, retorna o jogo sem fazer nada (operação idempotente)
         Optional<PlayerGame> existingPlayerGame = playerGameRepository.findByGameAndPlayer(game, player);
         if (existingPlayerGame.isPresent()) {
-            throw new RuntimeException("Jogador já está no lobby.");
+            return game; // Jogador já está no lobby, retorna sucesso
         }
+
+        // Checagem de limite de jogadores
+        Set<PlayerGame> currentPlayers = game.getPlayerGames();
+        if (currentPlayers.size() >= GameConstants.MAX_PLAYERS) {
+            throw new RuntimeException("Lobby cheio. Número máximo de jogadores alcançado (" + GameConstants.MAX_PLAYERS + ").");
+        }
+        
+        // --- LÓGICA DE ATRIBUIÇÃO DE COR ---
+        
+        // Encontra todas as cores já utilizadas neste jogo
+        Set<String> usedColors = currentPlayers.stream()
+                                .map(PlayerGame::getColor)
+                                .filter(java.util.Objects::nonNull)
+                                .collect(Collectors.toSet());
+
+        // Encontra a primeira cor disponível (na ordem de GameConstants.AVAILABLE_COLORS)
+        String assignedColor = GameConstants.AVAILABLE_COLORS.stream()
+                                .filter(color -> !usedColors.contains(color))
+                                .findFirst()
+                                .orElseThrow(() -> new RuntimeException("Erro interno: Nenhuma cor disponível."));
+
+        // ------------------------------------
 
         // Cria a entidade PlayerGame para o novo jogador
         PlayerGame newPlayerGame = new PlayerGame();
         newPlayerGame.setGame(game);
         newPlayerGame.setPlayer(player);
         newPlayerGame.setIsOwner(false);
-        newPlayerGame.setIsReady(false);
+        newPlayerGame.setStillInGame(true); 
+        
+        // Adicionando a cor
+        newPlayerGame.setColor(assignedColor); 
+        
+        newPlayerGame.setUsername(player.getUsername()); 
+        newPlayerGame.setImageUrl(player.getImageUrl()); 
 
         playerGameRepository.save(newPlayerGame);
+        
+        game.getPlayerGames().add(newPlayerGame);
 
-        return gameRepository.findById(lobbyId)
-                .orElseThrow(() -> new RuntimeException("Lobby não encontrado."));
+        return game;
     }
 
     @Transactional
     public Game removePlayerFromLobby(Long lobbyId, Player player) {
         Game game = gameRepository.findById(lobbyId)
                 .orElseThrow(() -> new RuntimeException("Lobby não encontrado."));
+        
+        if (!GameStatus.LOBBY.name().equals(game.getStatus())) {
+            throw new RuntimeException("Não é possível sair. O jogo já foi iniciado.");
+        }
 
         // Encontra a entidade PlayerGame para remover
         PlayerGame playerGame = playerGameRepository.findByGameAndPlayer(game, player)
                 .orElseThrow(() -> new RuntimeException("Jogador não está no lobby."));
 
+        // Reove o player
+        game.getPlayerGames().remove(playerGame); 
+        
         // Remove a entidade de relacionamento do banco de dados
         playerGameRepository.delete(playerGame);
 
         // Lógica para o dono: se o dono sair, o próximo vira o dono
         if (playerGame.getIsOwner()) {
-            List<PlayerGame> remainingPlayers = playerGameRepository.findByGame(game);
-            if (!remainingPlayers.isEmpty()) {
-                PlayerGame newOwner = remainingPlayers.get(0);
+            Set<PlayerGame> remainingPlayersSet = game.getPlayerGames();
+            
+            if (!remainingPlayersSet.isEmpty()) {
+                // Converte para lista para pegar o 'primeiro'
+                List<PlayerGame> remainingPlayersList = new ArrayList<>(remainingPlayersSet); 
+                
+                // Define o próximo jogador como novo dono
+                PlayerGame newOwner = remainingPlayersList.get(0);
                 newOwner.setIsOwner(true);
                 playerGameRepository.save(newOwner);
+                
             } else {
                 // Se não houver mais jogadores, o lobby é excluído
                 gameRepository.delete(game);
-                return null; // Retorna null para dizxer que o lobby foi excluído
+                return null; // Retorna null para sinalizar que o lobby foi excluído
             }
         }
         
-        return gameRepository.findById(lobbyId).orElse(null);
+        return game;
+    }
+
+    @Transactional
+    public Game removePlayerFromGame(Long gameId, Player player) {
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new RuntimeException("Jogo não encontrado."));
+
+        // Encontra o PlayerGame do jogador
+        PlayerGame playerGame = playerGameRepository.findByGameAndPlayer(game, player)
+                .orElseThrow(() -> new RuntimeException("Jogador não está neste jogo."));
+
+        // Marca o jogador como fora do jogo (stillInGame = false)
+        playerGame.setStillInGame(false);
+        playerGameRepository.save(playerGame);
+
+        // Se era o turno desse jogador, passa para o próximo
+        if (game.getTurnPlayer() != null && 
+            game.getTurnPlayer().getId().equals(playerGame.getId())) {
+            
+            // Busca próximo jogador ativo
+            List<PlayerGame> activePlayers = playerGameRepository.findByGame(game).stream()
+                    .filter(PlayerGame::getStillInGame)
+                    .sorted(Comparator.comparing(PlayerGame::getTurnOrder))
+                    .collect(Collectors.toList());
+
+            if (!activePlayers.isEmpty()) {
+                // Encontra o próximo jogador na ordem
+                int currentIndex = -1;
+                for (int i = 0; i < activePlayers.size(); i++) {
+                    if (activePlayers.get(i).getTurnOrder() > playerGame.getTurnOrder()) {
+                        currentIndex = i;
+                        break;
+                    }
+                }
+                
+                // Se não encontrou ninguém depois, volta para o primeiro
+                if (currentIndex == -1) {
+                    currentIndex = 0;
+                }
+                
+                PlayerGame nextPlayer = activePlayers.get(currentIndex);
+                game.setTurnPlayer(nextPlayer);
+                gameRepository.save(game);
+            } else {
+                // Não há mais jogadores ativos, finaliza o jogo
+                game.setStatus(GameStatus.FINISHED.name());
+                gameRepository.save(game);
+            }
+        }
+
+        // Transfere territórios do jogador que saiu para jogadores ativos
+        List<GameTerritory> playerTerritories = gameTerritoryRepository
+                .findByGameAndOwner(game, playerGame);
+        
+        if (!playerTerritories.isEmpty()) {
+            List<PlayerGame> activePlayers = playerGameRepository.findByGame(game).stream()
+                    .filter(PlayerGame::getStillInGame)
+                    .collect(Collectors.toList());
+            
+            if (!activePlayers.isEmpty()) {
+                // Distribui territórios entre jogadores ativos de forma round-robin
+                int playerIndex = 0;
+                for (GameTerritory territory : playerTerritories) {
+                    territory.setOwner(activePlayers.get(playerIndex));
+                    gameTerritoryRepository.save(territory);
+                    
+                    playerIndex = (playerIndex + 1) % activePlayers.size();
+                }
+            }
+        }
+
+        // Verifica se só restou 1 jogador ativo (vencedor)
+        long activePlayersCount = playerGameRepository.findByGame(game).stream()
+                .filter(PlayerGame::getStillInGame)
+                .count();
+        
+        if (activePlayersCount == 1) {
+            game.setStatus(GameStatus.FINISHED.name());
+            gameRepository.save(game);
+        }
+
+        return game;
     }
 
     // EM JOGO =====================================
@@ -147,7 +348,7 @@ public class GameService {
         Game game = gameRepository.findById(gameId)
             .orElseThrow(() -> new RuntimeException("Lobby não encontrado."));
 
-        if (!"Lobby".equals(game.getStatus())) {
+        if (!GameStatus.LOBBY.name().equals(game.getStatus())) {
             throw new RuntimeException("O jogo já foi iniciado ou tem status inválido.");
         }
 
@@ -155,7 +356,7 @@ public class GameService {
         
         List<PlayerGame> playerGames = playerGameRepository.findByGame(game);
         
-        // Validação de Dono
+        // Validação de Dono e Mínimo de Jogadores
         playerGames.stream()
             .filter(PlayerGame::getIsOwner)
             .filter(pg -> pg.getPlayer().equals(initiatingPlayer))
@@ -174,7 +375,7 @@ public class GameService {
             playerGames.get(i).setTurnOrder(i + 1);
         }
         
-        // Cálculo e Atribuição de Nuero de Tropas
+        // Cálculo e Atribuição de Tropas
         int initialTroops = calculateInitialTroops(playerGames.size());
         
         for (PlayerGame pg : playerGames) {
@@ -186,13 +387,15 @@ public class GameService {
         Collections.shuffle(allObjectives, new Random());
         
         for (int i = 0; i < playerGames.size(); i++) {
-            playerGames.get(i).setObjective(allObjectives.get(i % allObjectives.size()));
+            // Usa o módulo para garantir que objetivos sejam repetidos se houver mais jogadores que objetivos
+            playerGames.get(i).setObjective(allObjectives.get(i % allObjectives.size())); 
         }
 
         // Distribuição de Territórios
         List<Territory> allTerritories = territoryRepository.findAll();
         Collections.shuffle(allTerritories, new Random());
         
+        // Assume que distributeTerritories lida com a criação e atribuição inicial de 1 exército em cada território.
         List<GameTerritory> initialGameTerritories = distributeTerritories(game, playerGames, allTerritories);
 
         // Salva as mudanças
@@ -204,7 +407,8 @@ public class GameService {
             .findFirst()
             .orElseThrow(() -> new RuntimeException("Erro ao definir o primeiro jogador."));
 
-        game.setStatus("In Game - Initial Allocation");
+        game.setStatus(GameStatus.SETUP_ALLOCATION.name());
+        
         game.setTurnPlayer(firstPlayer); 
 
         return gameRepository.save(game);
@@ -215,9 +419,9 @@ public class GameService {
         Game game = gameRepository.findById(gameId)
             .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
 
-        String status = game.getStatus();
+        String currentStatus = game.getStatus();
         
-        if (!"In Game - Initial Allocation".equals(status) && !"In Game - Reinforcement".equals(status)) {
+        if (!GameStatus.SETUP_ALLOCATION.name().equals(currentStatus) && !GameStatus.REINFORCEMENT.name().equals(currentStatus)) {
             throw new RuntimeException("Não é a fase de alocação de tropas.");
         }
         
@@ -225,13 +429,13 @@ public class GameService {
         PlayerGame currentPlayerGame = playerGameRepository.findByGameAndPlayer(game, player)
             .orElseThrow(() -> new RuntimeException("Jogador não está na partida."));
 
-        // O jogador deve ter tropas para alocar
+        // Validação de tropas e count
         if (currentPlayerGame.getUnallocatedArmies() < count || count <= 0) {
             throw new RuntimeException("Quantidade de tropas inválida ou superior à sua reserva.");
         }
 
-        // Validação de Turno (APENAS para a fase de reforço, na inicial a vez já passa)
-        if ("In Game - Reinforcement".equals(status) && !game.getTurnPlayer().equals(currentPlayerGame)) {
+        // Validação de Turno (apenas para a fase de reforço)
+        if (GameStatus.REINFORCEMENT.name().equals(currentStatus) && !game.getTurnPlayer().equals(currentPlayerGame)) {
             throw new RuntimeException("Não é a sua vez de alocar tropas.");
         }
 
@@ -245,7 +449,8 @@ public class GameService {
         }
 
         // APLICAR A ALOCAÇÃO
-        gameTerritory.setArmies(gameTerritory.getArmies() + count);
+        // Tropas alocadas são sempre estáticas e podem se mover
+        gameTerritory.setStaticArmies(gameTerritory.getStaticArmies() + count);
         currentPlayerGame.setUnallocatedArmies(currentPlayerGame.getUnallocatedArmies() - count);
 
         // LÓGICA DE TRANSIÇÃO DE FASE
@@ -253,30 +458,41 @@ public class GameService {
         // Verifica se a reserva de tropas do jogador zerou
         if (currentPlayerGame.getUnallocatedArmies() == 0) {
             
-            if ("In Game - Initial Allocation".equals(status)) {
+            if (GameStatus.SETUP_ALLOCATION.name().equals(currentStatus)) {
+                
                 List<PlayerGame> remainingAllocators = playerGameRepository.findByGame(game).stream()
+                    .filter(PlayerGame::getStillInGame) // Checa se ainda está no jogo
                     .filter(pg -> pg.getUnallocatedArmies() > 0)
                     .sorted(Comparator.comparing(PlayerGame::getTurnOrder))
                     .collect(Collectors.toList());
 
                 if (remainingAllocators.isEmpty()) {
-                    // Todos terminaram. Transição para o 1º turno real.
-                    game.setStatus("In Game - Running");
+                    // TODOS terminaram a alocação inicial. Transição para o 1º turno de Jogo.
                     
+                    // Mudar para a fase de REFORÇO do primeiro jogador
+                    game.setStatus(GameStatus.REINFORCEMENT.name()); 
+                    
+                    // O primeiro jogador já foi setado corretamente no startGame, só precisamos confirmar.
                     PlayerGame firstTurnPlayer = playerGameRepository.findByGame(game).stream()
                         .filter(pg -> pg.getTurnOrder() == 1)
                         .findFirst()
                         .orElseThrow(() -> new RuntimeException("Erro ao definir o jogador inicial do jogo."));
                         
-                    game.setTurnPlayer(firstTurnPlayer);
+                    // O primeiro jogador deve CALCULAR e ATRIBUIR as tropas de REFORÇO
+                    int reinforcementTroops = calculateReinforcementTroops(game, firstTurnPlayer);
+                    firstTurnPlayer.setUnallocatedArmies(reinforcementTroops); 
+                    playerGameRepository.save(firstTurnPlayer); // Salva o reforço calculado
+                    
+                    game.setTurnPlayer(firstTurnPlayer); // Garante que o turno é dele
+                    
                 } else {
-                    // Passa para o próximo jogador na alocação inicial
+                    // Passa para o próximo jogador que ainda precisa alocar
                     game.setTurnPlayer(remainingAllocators.get(0));
                 }
 
-            } else if ("In Game - Reinforcement".equals(status)) {
+            } else if (GameStatus.REINFORCEMENT.name().equals(currentStatus)) {
                 // O jogador da vez terminou a alocação de reforço. Transição para a FASE DE ATAQUE.
-                game.setStatus("In Game - Attack");
+                game.setStatus(GameStatus.ATTACK.name());
             }
         }
         
@@ -333,9 +549,15 @@ public class GameService {
         Game game = gameRepository.findById(gameId)
             .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
 
-        // Validação inicial para verificar se o jogo está ativo
-        if (!game.getStatus().startsWith("In Game")) {
-            throw new RuntimeException("O jogo não está em andamento.");
+        String currentStatus = game.getStatus();
+
+        // Checamos se o status é um dos que permite o avanço de turno
+        if (GameStatus.LOBBY.name().equals(currentStatus) || 
+            GameStatus.SETUP_ALLOCATION.name().equals(currentStatus) || 
+            GameStatus.FINISHED.name().equals(currentStatus) ||
+            GameStatus.CANCELED.name().equals(currentStatus) ) {
+            
+            throw new RuntimeException("A ação de encerrar o turno não é válida na fase atual: " + currentStatus);
         }
 
         // Achar o jogador atual e validar se a chamada é dele
@@ -344,20 +566,9 @@ public class GameService {
             throw new RuntimeException("Você não tem permissão para encerrar o turno de outro jogador.");
         }
         
-        // Buscar todos os jogadores ordenados
-        List<PlayerGame> allPlayers = playerGameRepository.findByGame(game).stream()
-            .sorted(Comparator.comparing(PlayerGame::getTurnOrder))
-            .collect(Collectors.toList());
-
-        if (allPlayers.isEmpty()) {
-            throw new RuntimeException("Nenhum jogador na partida.");
-        }
-        
         // --- LÓGICA DE TRANSIÇÃO DE FASES ---
-        
-        String currentStatus = game.getStatus();
 
-        if ("In Game - Reinforcement".equals(currentStatus)) {
+        if (GameStatus.REINFORCEMENT.name().equals(currentStatus)) {
             // Se estiver em Reforço, o 'endTurn' avança para o Ataque.
             
             // Regra: O jogador deve alocar todas as tropas antes de avançar para Ataque.
@@ -365,53 +576,64 @@ public class GameService {
                 throw new RuntimeException("Você deve alocar todas as suas tropas de reforço (" + currentPlayerGame.getUnallocatedArmies() + ") antes de avançar para a fase de Ataque.");
             }
             
-            game.setStatus("In Game - Attack");
+            game.setStatus(GameStatus.ATTACK.name());
         
-        } else if ("In Game - Attack".equals(currentStatus)) {
+        } else if (GameStatus.ATTACK.name().equals(currentStatus)) {
             // Se estiver em Ataque, o 'endTurn' avança para Movimentação.
-            game.setStatus("In Game - Movement");
+            game.setStatus(GameStatus.MOVEMENT.name());
         
-        } else if ("In Game - Movement".equals(currentStatus)) {
-            // Se estiver em Movimentação, o 'endTurn' encerra o turno e passa para o próximo jogador.
+        } else if (GameStatus.MOVEMENT.name().equals(currentStatus)) {
             
+            // --- LÓGICA DE FIM DE TURNO E PASSAGEM DE VEZ ---
+
+            // 1. Recompensa de Carta (se conquistou)
             long currentCards = playerCardRepository.countByPlayerGame(currentPlayerGame); 
             
             if (currentPlayerGame.getConqueredTerritoryThisTurn() && currentCards < 5) {
-                // Se conquistou pelo menos 1 território e não está no limite de 5 cartas, recebe uma
                 drawCard(currentPlayerGame);
             }
             
-            // O jogador que inicia o turno deve ter a flag zerada
+            // 2. Reset de Flag
             currentPlayerGame.setConqueredTerritoryThisTurn(false);
             
-            // Encontrar o índice do jogador atual
-            int currentPlayerIndex = allPlayers.indexOf(currentPlayerGame);
-            
-            // O próximo índice na ordem circular
-            int nextPlayerIndex = (currentPlayerIndex + 1) % allPlayers.size();
-            PlayerGame nextPlayerGame = allPlayers.get(nextPlayerIndex);
+            // 3. Buscar os jogadores ativos, ordenados por turnOrder
+            List<PlayerGame> activePlayers = playerGameRepository.findByGame(game).stream()
+                .filter(PlayerGame::getStillInGame) // <--- FILTRO CRUCIAL
+                .sorted(Comparator.comparing(PlayerGame::getTurnOrder))
+                .collect(Collectors.toList());
 
-            // Transição do Turno
+            if (activePlayers.size() <= 1) { 
+                PlayerGame winner = activePlayers.stream().findFirst().orElse(null);
+                if (winner != null) {
+                    throw new RuntimeException("Tentativa de avanço de turno com jogo já finalizado ou com um único jogador ativo.");
+                }
+                throw new RuntimeException("Erro de estado do jogo. Nenhum jogador ativo para avançar.");
+            }
+            
+            // 4. Determinar o Próximo Jogador Ativo
+            
+            // Encontrar o índice do jogador atual na lista ATIVA
+            int currentPlayerIndex = activePlayers.indexOf(currentPlayerGame);
+            
+            // O próximo índice na ordem circular dos ativos
+            int nextPlayerIndex = (currentPlayerIndex + 1) % activePlayers.size();
+            PlayerGame nextPlayerGame = activePlayers.get(nextPlayerIndex);
+
+            // 5. Transição do Turno
             game.setTurnPlayer(nextPlayerGame);
 
-            // Cálculo e Atribuição de Tropas
+            // 6. Cálculo e Atribuição de Tropas de Reforço
             int reinforcementTroops = calculateReinforcementTroops(game, nextPlayerGame);
-            
-            // Reutilizando o campo de alocação de tropas
             nextPlayerGame.setUnallocatedArmies(reinforcementTroops); 
             
-            // Mudar o Status para a fase de Alocação (Início do novo turno)
-            game.setStatus("In Game - Reinforcement"); 
+            // 7. Mudar o Status para a fase de Alocação (Início do novo turno)
+            game.setStatus(GameStatus.REINFORCEMENT.name()); 
 
             playerGameRepository.save(currentPlayerGame);
             playerGameRepository.save(nextPlayerGame);
             
-        } else if ("Lobby".equals(currentStatus) || "In Game - Initial Allocation".equals(currentStatus) || "Game Over".equals(currentStatus)) {
-            // Se o jogo está em Initial Allocation, o 'endTurn' não é usado,
-            // e se estiver em Lobby/Game Over, também não deve ser chamado.
-            throw new RuntimeException("A ação de encerrar o turno não é válida na fase atual: " + currentStatus);
         } else {
-            throw new RuntimeException("O jogo não está em uma fase de turno conhecida.");
+            throw new RuntimeException("O jogo não está em uma fase de turno conhecida ou a ação não é válida.");
         }
         
         return gameRepository.save(game);
@@ -448,8 +670,8 @@ public class GameService {
         // Calcula e Atribui Tropas
         int bonusTroops = calculateCardBonus(game);
         
-        // Bônus por território, Pode deixar o aviso aqui mesmo, talvez façamos algo com esse valor depois
-        int territoryBonus = calculateTerritoryMatchBonus(game, playerGame, cardsToTrade);
+        // Calcula e aplica o bônus de território diretamente
+        calculateTerritoryMatchBonus(game, playerGame, cardsToTrade);
 
         // Adiciona as tropas à reserva do jogador
         playerGame.setUnallocatedArmies(playerGame.getUnallocatedArmies() + bonusTroops);
@@ -468,8 +690,7 @@ public class GameService {
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
 
-        // Validação do Estado e Jogador
-        if (!"In Game - Attack".equals(game.getStatus())) {
+        if (!GameStatus.ATTACK.name().equals(game.getStatus())) {
             throw new RuntimeException("Ação inválida. A partida não está na fase de Ataque.");
         }
 
@@ -503,19 +724,22 @@ public class GameService {
         }
 
         // Validação de Tropas do Atacante e Dados
-        int armiesAvailable = sourceTerritory.getArmies();
+        // Para ataque, consideramos apenas tropas estáticas (que não se moveram)
+        int armiesAvailable = sourceTerritory.getStaticArmies();
         if (armiesAvailable <= dto.getAttackDiceCount()) {
             throw new RuntimeException("Você deve deixar pelo menos um exército no território atacante. Máximo de dados de ataque permitido: " + (armiesAvailable - 1));
         }
 
         // Determinar Dados de Defesa
         PlayerGame defenderPlayerGame = targetTerritory.getOwner();
-        int defenseArmies = targetTerritory.getArmies();
+        // Para defesa, todas as tropas (estáticas e movidas) podem defender
+        int defenseArmies = targetTerritory.getStaticArmies() + targetTerritory.getMovedInArmies();
         
         // Defensor usa 2 dados se tiver 2 ou mais exércitos, senão usa 1.
         int defenseDiceCount = (defenseArmies >= 2) ? 2 : 1;
         
         // Rolagem de Dados e Resolução
+        // ... (Simulação e Resolução de Combate)
         List<Integer> attackRolls = simulateDiceRolls(dto.getAttackDiceCount());
         List<Integer> defenseRolls = simulateDiceRolls(defenseDiceCount);
         
@@ -524,10 +748,22 @@ public class GameService {
         int defenderLosses = combatResult[1];
 
         // Aplicação das Perdas
-        sourceTerritory.setArmies(sourceTerritory.getArmies() - attackerLosses);
-        targetTerritory.setArmies(targetTerritory.getArmies() - defenderLosses);
+        // O atacante sempre perde tropas estáticas
+        sourceTerritory.setStaticArmies(sourceTerritory.getStaticArmies() - attackerLosses);
+        
+        // O defensor perde primeiro as tropas estáticas, depois as movidas
+        int remainingDefenderLosses = defenderLosses;
+        int currentStaticArmies = targetTerritory.getStaticArmies();
+        
+        if (currentStaticArmies >= remainingDefenderLosses) {
+            targetTerritory.setStaticArmies(currentStaticArmies - remainingDefenderLosses);
+        } else {
+            remainingDefenderLosses -= currentStaticArmies;
+            targetTerritory.setStaticArmies(0);
+            targetTerritory.setMovedInArmies(targetTerritory.getMovedInArmies() - remainingDefenderLosses);
+        }
 
-        // Log (Só pra ver o que aconteceu, podemos mostrar no front depois)
+        // Log (manter log para debug)
         System.out.printf("Combate: %s vs %s. Atacante (%s) perdeu %d. Defensor (%s) perdeu %d.\n",
                 sourceTerritory.getTerritory().getName(), 
                 targetTerritory.getTerritory().getName(),
@@ -540,19 +776,21 @@ public class GameService {
         gameTerritoryRepository.save(targetTerritory);
         
         // Lógica de Conquista
-        if (targetTerritory.getArmies() <= 0) {
+        if ((targetTerritory.getStaticArmies() + targetTerritory.getMovedInArmies()) <= 0) {
             
             // Validação do movimento mínimo
             if (dto.getTroopsToMoveAfterConquest() < dto.getAttackDiceCount() || dto.getTroopsToMoveAfterConquest() >= armiesAvailable) {
-                // A regra é mover no mínimo o número de dados usados, e no máximo (exércitos disponíveis - 1)
                 throw new RuntimeException(String.format("Movimento de exércitos inválido após a conquista. Mínimo: %d, Máximo: %d.", dto.getAttackDiceCount(), armiesAvailable - 1));
             }
             
             // Transferência de Posse e Tropas
             targetTerritory.setOwner(currentPlayerGame);
-            targetTerritory.setArmies(dto.getTroopsToMoveAfterConquest());
+            // Tropas que conquistam um território ficam como moved_in e não podem se mover novamente
+            targetTerritory.setStaticArmies(0);
+            targetTerritory.setMovedInArmies(dto.getTroopsToMoveAfterConquest());
             
-            sourceTerritory.setArmies(sourceTerritory.getArmies() - dto.getTroopsToMoveAfterConquest());
+            // Reduz as tropas estáticas do território atacante
+            sourceTerritory.setStaticArmies(sourceTerritory.getStaticArmies() - dto.getTroopsToMoveAfterConquest());
 
             // Setar a flag de carta (Recompensa)
             currentPlayerGame.setConqueredTerritoryThisTurn(true);
@@ -562,40 +800,99 @@ public class GameService {
             gameTerritoryRepository.save(sourceTerritory);
             playerGameRepository.save(currentPlayerGame); // Salva a flag de conquista
 
-            // Checar Fim de Jogo
+            // Checar Fim de Jogo (Isto checa eliminação e, se houver, chama o winConditionService)
             checkGameOver(game, defenderPlayerGame);
+
+            // 2. Checagem de Objetivo Pós-Conquista (NOVA LÓGICA)
+            if (!GameStatus.FINISHED.name().equals(game.getStatus())) { 
+                // Se o jogo não foi finalizado pelo checkGameOver (após eliminação),
+                // checamos se a conquista do território completou o objetivo do atacante.
+                winConditionService.checkObjectiveCompletion(game, currentPlayerGame);
+            }
 
             System.out.println("Território conquistado!");
         }
+        
+        if (GameStatus.FINISHED.name().equals(game.getStatus())) {
+            return game; 
+        }
 
-        // Notificação e retorno como de costume
-        messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", game);
+        // Se o jogo não terminou notifica e retorna como de costume
+        messagingTemplate.convertAndSend("/topic/game/" + gameId + "/status", game);
         return game;
     }
 
-    // Verifica se o defensor perdeu todos os territórios e, se sim, o remove do jogo e o atacante herda suas cartas.
-    private void checkGameOver(Game game, PlayerGame defeatedPlayer) {
+    @Transactional
+    public void checkGameOver(Game game, PlayerGame defeatedPlayer) {
+        // O atacante é o jogador que está na vez (TurnPlayer)
+        PlayerGame attackerPlayer = game.getTurnPlayer(); 
+        
+        // Verifica se o jogador foi eliminado
+        // Assumimos que o countByOwner está corretamente definido no GameTerritoryRepository.
         long territoriesOwned = gameTerritoryRepository.countByOwner(defeatedPlayer);
 
         if (territoriesOwned == 0) {
-            // O jogador defensor foi eliminado. O atacante herda suas cartas.
+            
+            // --- Lógica de Transferência de Cartas ---
             
             List<PlayerCard> defeatedCards = playerCardRepository.findByPlayerGame(defeatedPlayer);
-            for (PlayerCard card : defeatedCards) {
-                card.setPlayerGame(game.getTurnPlayer());
-                playerCardRepository.save(card);
-            }
             
-            // Marcar o jogador como 'Derrotado' (ou similar) e removê-lo da lista de ativos do jogo.
-            // Para simplificar, podemos apenas remover o jogador do jogo ou setar um status.
-            defeatedPlayer.setStillInGame(false); // Assumindo que você tem essa flag
+            // Atualiza a posse de todas as cartas no loop
+            for (PlayerCard card : defeatedCards) {
+                card.setPlayerGame(attackerPlayer);
+            }
+
+            // Persiste todas as mudanças de posse de uma só vez
+            if (!defeatedCards.isEmpty()) {
+                playerCardRepository.saveAll(defeatedCards); 
+                System.out.println(String.format("Transferidas %d cartas de %s para %s.", defeatedCards.size(), defeatedPlayer.getUsername(), attackerPlayer.getUsername()));
+            }
+
+            // --- Marcação de Eliminação ---
+            
+            // Marcar o jogador como 'Eliminado'
+            defeatedPlayer.setStillInGame(false); 
             playerGameRepository.save(defeatedPlayer);
             
-            System.out.println("Jogador " + defeatedPlayer.getPlayer().getUsername() + " foi eliminado. Cartas transferidas.");
+            System.out.println("Jogador " + defeatedPlayer.getUsername() + " foi eliminado.");
             
-            // Checar se restou apenas um jogador
-            // ... (Lógica de fim de jogo final)
+            // --- Checagem da Condição de Vitória ---
+            
+            // Chamar o serviço de verificação de vitória
+            winConditionService.checkWinConditions(game, attackerPlayer);
         }
+    }
+
+    @EventListener // Anotação crucial para ouvir o evento
+    @Transactional // Mantém a garantia de persistência
+    public void endGameListener(GameOverEvent event) {
+        // Extrair os dados do Evento
+        Game game = event.getGame();
+        PlayerGame winner = event.getWinner();
+        String condition = event.getCondition();
+        String description = event.getObjectiveDescription();
+        
+        // Atualizar o estado do jogo e persistir
+        game.setStatus(GameStatus.FINISHED.name()); 
+        game.setWinner(winner); 
+        gameRepository.save(game);
+        
+        // Notificação
+        GameResultResponse response = new GameResultResponse();
+        
+        response.setWinningPlayerId(winner.getId());
+        response.setWinningPlayerName(winner.getUsername()); 
+        response.setWinningPlayerColor(winner.getColor());           
+        response.setWinningPlayerImageUrl(winner.getImageUrl()); 
+        
+        response.setWinningCondition(condition);
+        response.setObjectiveDescription(description);
+        
+        // Envia a notificação via WebSocket
+        String topic = "/topic/game/" + game.getId() + "/status"; 
+        messagingTemplate.convertAndSend(topic, response);
+        
+        System.out.println("Jogo " + game.getId() + " finalizado. Vencedor: " + winner.getUsername());
     }
 
     // AUXILIARES ==================================
@@ -611,7 +908,9 @@ public class GameService {
             gt.setGame(game);
             gt.setTerritory(territory);
             gt.setOwner(owner);
-            gt.setArmies(1);
+            gt.setStaticArmies(1);  // Tropas iniciais são estáticas
+            gt.setMovedInArmies(0); // Nenhuma tropa movida inicialmente
+            gt.setUnallocatedArmies(0); // Nenhuma tropa não alocada
             
             gameTerritories.add(gt);
             
@@ -687,15 +986,15 @@ public class GameService {
 
         // Verificar o bônus de correspondência de território
         for (Card card : cardsToTrade) {
-            if (card.getTerritory() != null) {
-                Long territoryMasterId = card.getTerritory().getId();
-                
-                if (ownedTerritoriesMap.containsKey(territoryMasterId)) {
-                    GameTerritory gt = ownedTerritoriesMap.get(territoryMasterId);
-                    gt.setArmies(gt.getArmies() + 2);
-                    gameTerritoryRepository.save(gt);
-                    bonus += 2; 
-                }
+            if (card.getTerritory() == null) continue;
+            Long territoryMasterId = card.getTerritory().getId();
+            
+            if (ownedTerritoriesMap.containsKey(territoryMasterId)) {
+                GameTerritory gt = ownedTerritoriesMap.get(territoryMasterId);
+                gt.setStaticArmies(gt.getStaticArmies() + 2);
+                gameTerritoryRepository.save(gt);
+                bonus += 2;
+                System.out.println("Bônus de território para a carta: " + card.getTerritory().getName());
             }
         }
         return bonus;
