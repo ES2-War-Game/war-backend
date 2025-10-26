@@ -3,9 +3,15 @@ package com.war.game.war_backend.model.enums;
 import java.util.List;
 
 public class GameConstants {
-    // Cores padrão do War, em maiúsculas para padronização.
+    // Cores do War - valores CSS usados pelo frontend
+    // Ordem: Blue, Red, Green, Yellow, Purple, Black
     public static final List<String> AVAILABLE_COLORS = List.of(
-        "VERMELHO", "AZUL", "AMARELO", "VERDE", "PRETO", "ROSA"
+        "blue",      // Jogador azul
+        "red",       // Jogador vermelho
+        "green",     // Jogador verde
+        "#bfa640",   // Jogador amarelo (cor específica)
+        "purple",    // Jogador roxo
+        "black"      // Jogador preto
     );
     
     public static final int MAX_PLAYERS = 6;

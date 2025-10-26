@@ -91,7 +91,6 @@ public class GameService {
         
         // Configurando as propriedades do PlayerGame
         creatorPlayerGame.setIsOwner(true);
-        creatorPlayerGame.setIsReady(false);
         creatorPlayerGame.setStillInGame(true); 
 
         // Adicionando a cor
@@ -103,11 +102,30 @@ public class GameService {
 
         playerGameRepository.save(creatorPlayerGame);
 
+        newGame.getPlayerGames().add(creatorPlayerGame);
+
         return newGame;
     }
 
     public List<Game> findAllLobbies() {
         return gameRepository.findByStatus(GameStatus.LOBBY.name());
+    }
+
+    public Game findCurrentGameForPlayer(Player player) {
+        // Busca qualquer jogo ativo do jogador (lobby ou em andamento)
+        List<PlayerGame> activeGames = playerGameRepository.findByPlayerAndStillInGame(player, true);
+        
+        if (activeGames.isEmpty()) {
+            return null;
+        }
+        
+        // Retorna o jogo mais recente (último criado)
+        return activeGames.stream()
+            .map(PlayerGame::getGame)
+            .filter(game -> !GameStatus.FINISHED.name().equals(game.getStatus()) 
+                         && !GameStatus.CANCELED.name().equals(game.getStatus()))
+            .max((g1, g2) -> g1.getCreatedAt().compareTo(g2.getCreatedAt()))
+            .orElse(null);
     }
 
     @Transactional
@@ -119,16 +137,48 @@ public class GameService {
             throw new RuntimeException("Não é possível entrar. O jogo já foi iniciado ou tem status inválido.");
         }
         
+        // Remove o jogador de outros lobbies ativos (status LOBBY) ANTES de verificar se já está no lobby atual
+        List<PlayerGame> activeLobbies = playerGameRepository.findByPlayerAndGame_Status(player, GameStatus.LOBBY.name());
+        for (PlayerGame activeLobbyPlayerGame : activeLobbies) {
+            Game activeLobby = activeLobbyPlayerGame.getGame();
+            
+            // Pula o lobby atual (que o jogador está tentando entrar)
+            if (activeLobby.getId().equals(lobbyId)) {
+                continue;
+            }
+            
+            // Remove o jogador do lobby anterior
+            activeLobby.getPlayerGames().remove(activeLobbyPlayerGame);
+            playerGameRepository.delete(activeLobbyPlayerGame);
+            
+            // Se o jogador era dono, transfere a propriedade ou deleta o lobby
+            if (activeLobbyPlayerGame.getIsOwner()) {
+                Set<PlayerGame> remainingPlayers = activeLobby.getPlayerGames();
+                
+                if (!remainingPlayers.isEmpty()) {
+                    // Define o próximo jogador como novo dono
+                    List<PlayerGame> remainingPlayersList = new ArrayList<>(remainingPlayers);
+                    PlayerGame newOwner = remainingPlayersList.get(0);
+                    newOwner.setIsOwner(true);
+                    playerGameRepository.save(newOwner);
+                } else {
+                    // Se não houver mais jogadores, exclui o lobby
+                    gameRepository.delete(activeLobby);
+                }
+            }
+        }
+        
+        // Verifica se o jogador já está neste lobby específico (após a limpeza de outros lobbies)
+        // Se já estiver, retorna o jogo sem fazer nada (operação idempotente)
+        Optional<PlayerGame> existingPlayerGame = playerGameRepository.findByGameAndPlayer(game, player);
+        if (existingPlayerGame.isPresent()) {
+            return game; // Jogador já está no lobby, retorna sucesso
+        }
+
         // Checagem de limite de jogadores
         Set<PlayerGame> currentPlayers = game.getPlayerGames();
         if (currentPlayers.size() >= GameConstants.MAX_PLAYERS) {
             throw new RuntimeException("Lobby cheio. Número máximo de jogadores alcançado (" + GameConstants.MAX_PLAYERS + ").");
-        }
-
-        // Verifica se o jogador já está no lobby
-        Optional<PlayerGame> existingPlayerGame = playerGameRepository.findByGameAndPlayer(game, player);
-        if (existingPlayerGame.isPresent()) {
-            throw new RuntimeException("Jogador já está no lobby.");
         }
         
         // --- LÓGICA DE ATRIBUIÇÃO DE COR ---
@@ -152,7 +202,6 @@ public class GameService {
         newPlayerGame.setGame(game);
         newPlayerGame.setPlayer(player);
         newPlayerGame.setIsOwner(false);
-        newPlayerGame.setIsReady(false);
         newPlayerGame.setStillInGame(true); 
         
         // Adicionando a cor
@@ -162,6 +211,8 @@ public class GameService {
         newPlayerGame.setImageUrl(player.getImageUrl()); 
 
         playerGameRepository.save(newPlayerGame);
+        
+        game.getPlayerGames().add(newPlayerGame);
 
         return game;
     }
@@ -179,16 +230,22 @@ public class GameService {
         PlayerGame playerGame = playerGameRepository.findByGameAndPlayer(game, player)
                 .orElseThrow(() -> new RuntimeException("Jogador não está no lobby."));
 
+        // Reove o player
+        game.getPlayerGames().remove(playerGame); 
+        
         // Remove a entidade de relacionamento do banco de dados
         playerGameRepository.delete(playerGame);
 
         // Lógica para o dono: se o dono sair, o próximo vira o dono
         if (playerGame.getIsOwner()) {
-            List<PlayerGame> remainingPlayers = playerGameRepository.findByGame(game);
+            Set<PlayerGame> remainingPlayersSet = game.getPlayerGames();
             
-            if (!remainingPlayers.isEmpty()) {
+            if (!remainingPlayersSet.isEmpty()) {
+                // Converte para lista para pegar o 'primeiro'
+                List<PlayerGame> remainingPlayersList = new ArrayList<>(remainingPlayersSet); 
+                
                 // Define o próximo jogador como novo dono
-                PlayerGame newOwner = remainingPlayers.get(0);
+                PlayerGame newOwner = remainingPlayersList.get(0);
                 newOwner.setIsOwner(true);
                 playerGameRepository.save(newOwner);
                 
@@ -199,6 +256,88 @@ public class GameService {
             }
         }
         
+        return game;
+    }
+
+    @Transactional
+    public Game removePlayerFromGame(Long gameId, Player player) {
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new RuntimeException("Jogo não encontrado."));
+
+        // Encontra o PlayerGame do jogador
+        PlayerGame playerGame = playerGameRepository.findByGameAndPlayer(game, player)
+                .orElseThrow(() -> new RuntimeException("Jogador não está neste jogo."));
+
+        // Marca o jogador como fora do jogo (stillInGame = false)
+        playerGame.setStillInGame(false);
+        playerGameRepository.save(playerGame);
+
+        // Se era o turno desse jogador, passa para o próximo
+        if (game.getTurnPlayer() != null && 
+            game.getTurnPlayer().getId().equals(playerGame.getId())) {
+            
+            // Busca próximo jogador ativo
+            List<PlayerGame> activePlayers = playerGameRepository.findByGame(game).stream()
+                    .filter(PlayerGame::getStillInGame)
+                    .sorted(Comparator.comparing(PlayerGame::getTurnOrder))
+                    .collect(Collectors.toList());
+
+            if (!activePlayers.isEmpty()) {
+                // Encontra o próximo jogador na ordem
+                int currentIndex = -1;
+                for (int i = 0; i < activePlayers.size(); i++) {
+                    if (activePlayers.get(i).getTurnOrder() > playerGame.getTurnOrder()) {
+                        currentIndex = i;
+                        break;
+                    }
+                }
+                
+                // Se não encontrou ninguém depois, volta para o primeiro
+                if (currentIndex == -1) {
+                    currentIndex = 0;
+                }
+                
+                PlayerGame nextPlayer = activePlayers.get(currentIndex);
+                game.setTurnPlayer(nextPlayer);
+                gameRepository.save(game);
+            } else {
+                // Não há mais jogadores ativos, finaliza o jogo
+                game.setStatus(GameStatus.FINISHED.name());
+                gameRepository.save(game);
+            }
+        }
+
+        // Transfere territórios do jogador que saiu para jogadores ativos
+        List<GameTerritory> playerTerritories = gameTerritoryRepository
+                .findByGameAndOwner(game, playerGame);
+        
+        if (!playerTerritories.isEmpty()) {
+            List<PlayerGame> activePlayers = playerGameRepository.findByGame(game).stream()
+                    .filter(PlayerGame::getStillInGame)
+                    .collect(Collectors.toList());
+            
+            if (!activePlayers.isEmpty()) {
+                // Distribui territórios entre jogadores ativos de forma round-robin
+                int playerIndex = 0;
+                for (GameTerritory territory : playerTerritories) {
+                    territory.setOwner(activePlayers.get(playerIndex));
+                    gameTerritoryRepository.save(territory);
+                    
+                    playerIndex = (playerIndex + 1) % activePlayers.size();
+                }
+            }
+        }
+
+        // Verifica se só restou 1 jogador ativo (vencedor)
+        long activePlayersCount = playerGameRepository.findByGame(game).stream()
+                .filter(PlayerGame::getStillInGame)
+                .count();
+        
+        if (activePlayersCount == 1) {
+            game.setStatus(GameStatus.FINISHED.name());
+            gameRepository.save(game);
+        }
+
         return game;
     }
 
@@ -679,7 +818,7 @@ public class GameService {
         }
 
         // Se o jogo não terminou notifica e retorna como de costume
-        messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", game);
+        messagingTemplate.convertAndSend("/topic/game/" + gameId + "/status", game);
         return game;
     }
 
