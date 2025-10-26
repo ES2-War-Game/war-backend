@@ -152,7 +152,7 @@ class GameControllerAllocateTroopsIntegrationTest {
         .param("territoryId", territoryId.toString())
         .param("count", count.toString())
         .contentType(MediaType.APPLICATION_JSON))
-        .andExpect(status().isForbidden()); // Spring Security retorna 403 para acesso sem auth
+        .andExpect(status().isUnauthorized()); // 401 quando não há autenticação
   }
 
   @Test
