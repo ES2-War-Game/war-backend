@@ -48,14 +48,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-      UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+      try {
+        UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
 
-      if (jwtTokenUtil.validateToken(jwtToken, userDetails)) {
-        UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
-            userDetails, null, userDetails.getAuthorities());
-        authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        if (jwtTokenUtil.validateToken(jwtToken, userDetails)) {
+          UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
+              userDetails, null, userDetails.getAuthorities());
+          authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-        SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+          SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+        }
+      } catch (Exception e) {
+        logger.warn("Falha ao autenticar usuário: " + username + ". Motivo: " + e.getMessage());
       }
     }
     filterChain.doFilter(request, response);
