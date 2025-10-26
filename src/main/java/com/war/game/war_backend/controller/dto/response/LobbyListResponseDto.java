@@ -12,5 +12,5 @@ public class LobbyListResponseDto {
     private Long id;
     private String name;
     private String status;
-
+    private int playerCount; 
 }

@@ -92,7 +92,7 @@ class GameControllerAllocateTroopsIntegrationTest {
     testPlayerGame = new PlayerGame();
     testPlayerGame.setGame(testGame);
     testPlayerGame.setPlayer(testPlayer);
-    testPlayerGame.setUsername(testPlayer.getUsername()); // Definindo o username
+    testPlayerGame.setUsername(testPlayer.getUsername());
     testPlayerGame.setTurnOrder(1);
     testPlayerGame.setUnallocatedArmies(10); // Tropas disponíveis para alocar
     testPlayerGame.setConqueredTerritoryThisTurn(false);
@@ -152,7 +152,7 @@ class GameControllerAllocateTroopsIntegrationTest {
         .param("territoryId", territoryId.toString())
         .param("count", count.toString())
         .contentType(MediaType.APPLICATION_JSON))
-        .andExpect(status().isForbidden()); // Spring Security retorna 403 para acesso sem auth
+        .andExpect(status().isUnauthorized()); // 401 quando não há autenticação
   }
 
   @Test

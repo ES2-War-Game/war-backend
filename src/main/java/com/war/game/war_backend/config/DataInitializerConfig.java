@@ -80,7 +80,6 @@ public class DataInitializerConfig {
                 // -------------------------------------
                 
                 playerGame.setIsOwner(true); 
-                playerGame.setIsReady(true);
                 playerGame.setStillInGame(true); 
                 
                 playerGame = playerGameRepository.save(playerGame);

@@ -210,7 +210,7 @@ class GameControllerAttackIntegrationTest {
     mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
         .contentType(MediaType.APPLICATION_JSON)
         .content(objectMapper.writeValueAsString(attackRequest)))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isUnauthorized()); // 401 quando não há autenticação
   }
 
   @Test
