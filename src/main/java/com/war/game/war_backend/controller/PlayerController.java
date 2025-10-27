@@ -1,7 +1,17 @@
 package com.war.game.war_backend.controller;
 
-import java.util.List;
-
+import com.war.game.war_backend.controller.dto.request.LoginRequestDto;
+import com.war.game.war_backend.controller.dto.request.PlayerRegistrationDto;
+import com.war.game.war_backend.controller.dto.request.PlayerUpdateDto;
+import com.war.game.war_backend.controller.dto.response.JwtResponseDto;
+import com.war.game.war_backend.controller.dto.response.PlayerDto;
+import com.war.game.war_backend.model.Player;
+import com.war.game.war_backend.security.jwt.JwtTokenUtil;
+import com.war.game.war_backend.services.PlayerService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,27 +21,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-import com.war.game.war_backend.controller.dto.request.LoginRequestDto;
-import com.war.game.war_backend.controller.dto.request.PlayerRegistrationDto;
-import com.war.game.war_backend.controller.dto.request.PlayerUpdateDto;
-import com.war.game.war_backend.controller.dto.response.JwtResponseDto;
-import com.war.game.war_backend.controller.dto.response.PlayerDto;
-import com.war.game.war_backend.model.Player;
-import com.war.game.war_backend.security.jwt.JwtTokenUtil;
-import com.war.game.war_backend.services.PlayerService;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/players")
@@ -69,18 +60,31 @@ public class PlayerController {
   @ApiResponse(responseCode = "200", description = "Login bem-sucedido")
   @ApiResponse(responseCode = "401", description = "Credenciais inválidas")
   public ResponseEntity<JwtResponseDto> loginPlayer(@Valid @RequestBody LoginRequestDto loginDto) {
-    try {
-      Authentication authentication = authenticationManager.authenticate(
-          new UsernamePasswordAuthenticationToken(loginDto.getUsername(), loginDto.getPassword()));
+      try {
+          Authentication authentication = authenticationManager.authenticate(
+              new UsernamePasswordAuthenticationToken(loginDto.getUsername(), loginDto.getPassword()));
 
-      SecurityContextHolder.getContext().setAuthentication(authentication);
+          SecurityContextHolder.getContext().setAuthentication(authentication);
 
-      final String token = jwtTokenUtil.generateToken((UserDetails) authentication.getPrincipal());
+          UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+          String username = userDetails.getUsername();
 
-      return ResponseEntity.ok(new JwtResponseDto(token));
-    } catch (BadCredentialsException e) {
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    }
+          Player loggedInPlayer = playerService.getPlayerByUsername(username); 
+          
+          final String token = jwtTokenUtil.generateToken(userDetails);
+
+          JwtResponseDto responseDto = new JwtResponseDto(
+              token,
+              loggedInPlayer.getId(),
+              loggedInPlayer.getUsername(),
+              loggedInPlayer.getEmail(),
+              loggedInPlayer.getImageUrl()
+          );
+
+          return ResponseEntity.ok(responseDto);
+      } catch (BadCredentialsException e) {
+          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+      }
   }
 
   @GetMapping
