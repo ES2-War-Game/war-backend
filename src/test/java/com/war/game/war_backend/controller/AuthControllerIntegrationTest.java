@@ -40,8 +40,7 @@ import com.war.game.war_backend.repository.RoleRepository;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-@TestPropertySource(properties = "app.redis.enabled=false")
-@Import(com.war.game.war_backend.config.TestRedisConfig.class)
+@Import(com.war.game.war_backend.config.BaseTestConfiguration.class)
 @Transactional
 public class AuthControllerIntegrationTest {
     

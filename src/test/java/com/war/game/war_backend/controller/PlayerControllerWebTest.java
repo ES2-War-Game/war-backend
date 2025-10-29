@@ -171,6 +171,12 @@ class PlayerControllerWebTest {
         .thenReturn(authToken);
     when(jwtTokenUtil.generateToken(any())).thenReturn("jwt-token");
 
+  Player savedPlayer = new Player();
+  savedPlayer.setId(42L);
+  savedPlayer.setUsername("usuario");
+  savedPlayer.setEmail("usuario@example.com");
+  when(playerService.getPlayerByUsername("usuario")).thenReturn(savedPlayer);
+
     mockMvc.perform(post(LOGIN_ENDPOINT)
         .contentType(MediaType.APPLICATION_JSON)
         .content(objectMapper.writeValueAsString(loginDto)))

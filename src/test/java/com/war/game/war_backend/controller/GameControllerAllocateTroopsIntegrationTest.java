@@ -14,6 +14,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.context.annotation.Import;
+import com.war.game.war_backend.config.BaseTestConfiguration;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.war.game.war_backend.model.Game;
@@ -31,6 +33,7 @@ import com.war.game.war_backend.security.jwt.JwtTokenUtil;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(BaseTestConfiguration.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @Transactional
 class GameControllerAllocateTroopsIntegrationTest {

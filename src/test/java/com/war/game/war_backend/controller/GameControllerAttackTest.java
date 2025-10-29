@@ -29,6 +29,7 @@ import com.war.game.war_backend.model.Player;
 import com.war.game.war_backend.model.PlayerGame;
 import com.war.game.war_backend.services.GameService;
 import com.war.game.war_backend.services.PlayerService;
+import com.war.game.war_backend.controller.GameController;
 
 class GameControllerAttackTest {
 

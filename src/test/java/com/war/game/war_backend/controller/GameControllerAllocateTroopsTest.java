@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.security.Principal;
+import com.war.game.war_backend.controller.GameController;
 
 @ExtendWith(MockitoExtension.class)
 class GameControllerAllocateTroopsTest {
