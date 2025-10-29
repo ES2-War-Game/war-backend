@@ -2,18 +2,16 @@ package com.war.game.war_backend.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.war.game.war_backend.controller.dto.response.GameStateResponseDto;
-import com.war.game.war_backend.model.Game;
-import com.war.game.war_backend.services.GameService;
+import java.security.Principal;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,8 +23,10 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.security.Principal;
-import com.war.game.war_backend.controller.GameController;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.war.game.war_backend.controller.dto.response.GameStateResponseDto;
+import com.war.game.war_backend.model.Game;
+import com.war.game.war_backend.services.GameService;
 
 @ExtendWith(MockitoExtension.class)
 class GameControllerAllocateTroopsTest {

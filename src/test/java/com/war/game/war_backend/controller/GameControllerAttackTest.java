@@ -25,11 +25,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
 import com.war.game.war_backend.model.Game;
-import com.war.game.war_backend.model.Player;
-import com.war.game.war_backend.model.PlayerGame;
 import com.war.game.war_backend.services.GameService;
 import com.war.game.war_backend.services.PlayerService;
-import com.war.game.war_backend.controller.GameController;
 
 class GameControllerAttackTest {
 
