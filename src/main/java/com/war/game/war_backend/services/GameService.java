@@ -67,6 +67,21 @@ public class GameService {
         "Oceania", 2
     );
 
+    // Método auxiliar para notificar mudanças em um lobby via WebSocket
+    private void notifyLobbyUpdate(Game lobby) {
+        List<com.war.game.war_backend.controller.dto.response.PlayerLobbyDtoResponse> playerDtos = lobby.getPlayerGames().stream()
+            .map(pg -> new com.war.game.war_backend.controller.dto.response.PlayerLobbyDtoResponse(
+                pg.getId(),
+                pg.getPlayer().getUsername(),
+                pg.getColor(),
+                pg.getIsOwner(),
+                pg.getPlayer().getImageUrl()
+            ))
+            .collect(Collectors.toList());
+        
+        messagingTemplate.convertAndSend("/topic/lobby/" + lobby.getId() + "/state", playerDtos);
+    }
+
     // LOBBY =======================================
 
     @Transactional 
@@ -136,6 +151,12 @@ public class GameService {
             throw new RuntimeException("Não é possível entrar. O jogo já foi iniciado ou tem status inválido.");
         }
         
+        // Verifica se o jogador está em algum jogo ativo (não finalizado/cancelado)
+        Game currentGame = findCurrentGameForPlayer(player);
+        if (currentGame != null) {
+            throw new RuntimeException("Você já está em um jogo ativo. Saia do jogo atual antes de entrar em outro lobby.");
+        }
+        
         // Remove o jogador de outros lobbies ativos (status LOBBY) ANTES de verificar se já está no lobby atual
         List<PlayerGame> activeLobbies = playerGameRepository.findByPlayerAndGame_Status(player, GameStatus.LOBBY.name());
         for (PlayerGame activeLobbyPlayerGame : activeLobbies) {
@@ -160,10 +181,17 @@ public class GameService {
                     PlayerGame newOwner = remainingPlayersList.get(0);
                     newOwner.setIsOwner(true);
                     playerGameRepository.save(newOwner);
+                    
+                    // Envia notificação WebSocket para o lobby antigo informando a saída do jogador
+                    notifyLobbyUpdate(activeLobby);
                 } else {
                     // Se não houver mais jogadores, exclui o lobby
                     gameRepository.delete(activeLobby);
+                    // Lobby deletado, nenhuma notificação necessária (ninguém para receber)
                 }
+            } else {
+                // Jogador comum saiu, notifica o lobby antigo
+                notifyLobbyUpdate(activeLobby);
             }
         }
         
