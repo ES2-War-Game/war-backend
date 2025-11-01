@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
 import com.war.game.war_backend.controller.dto.request.LobbyCreationRequestDto;
+import com.war.game.war_backend.controller.dto.response.CurrentTurnInfoDto;
 import com.war.game.war_backend.controller.dto.response.GameLobbyDetailsDto;
 import com.war.game.war_backend.controller.dto.response.GameStateResponseDto;
 import com.war.game.war_backend.controller.dto.response.LobbyCreationResponseDto;
@@ -24,6 +25,7 @@ import com.war.game.war_backend.controller.dto.response.LobbyListResponseDto;
 import com.war.game.war_backend.controller.dto.response.PlayerLobbyDtoResponse;
 import com.war.game.war_backend.model.Game;
 import com.war.game.war_backend.model.Player;
+import com.war.game.war_backend.model.PlayerGame;
 import com.war.game.war_backend.model.enums.GameStatus;
 import com.war.game.war_backend.services.GameService;
 import com.war.game.war_backend.services.PlayerService;
@@ -147,6 +149,83 @@ public class GameController {
             // Se for jogo ativo, retorna estado completo
             GameStateResponseDto gameState = convertToGameStateDto(currentGame);
             return ResponseEntity.ok(gameState);
+            
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/{gameId}/current-turn")
+    @Operation(summary = "Retorna informações sobre o turno atual da partida.", 
+               description = "Retorna quem está jogando no momento, se é o turno do jogador autenticado e outras informações relevantes.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> getCurrentTurnInfo(
+            @Parameter(description = "ID da partida") 
+            @PathVariable Long gameId,
+            Principal principal) {
+        
+        String username = principal.getName();
+        
+        try {
+            Player player = playerService.getPlayerByUsername(username);
+            Game game = gameService.findGameById(gameId);
+            
+            // Verifica se o jogador está na partida
+            boolean playerInGame = game.getPlayerGames().stream()
+                .anyMatch(pg -> pg.getPlayer().getId().equals(player.getId()) && pg.getStillInGame());
+            
+            if (!playerInGame) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Você não está participando desta partida.");
+            }
+            
+            // Verifica se a partida já começou
+            if (GameStatus.LOBBY.name().equals(game.getStatus())) {
+                return ResponseEntity.badRequest()
+                    .body("A partida ainda não começou.");
+            }
+            
+            // Pega o jogador do turno atual
+            PlayerGame currentTurnPlayer = game.getTurnPlayer();
+            
+            if (currentTurnPlayer == null) {
+                return ResponseEntity.badRequest()
+                    .body("Turno atual não definido.");
+            }
+            
+            // Verifica se é o turno do jogador autenticado
+            boolean isMyTurn = currentTurnPlayer.getPlayer().getId().equals(player.getId());
+            
+            // Conta total de jogadores e jogadores ativos
+            int totalPlayers = game.getPlayerGames().size();
+            long activePlayers = game.getPlayerGames().stream()
+                .filter(PlayerGame::getStillInGame)
+                .count();
+            
+            // Monta informações do jogador do turno
+            CurrentTurnInfoDto.TurnPlayerInfo turnPlayerInfo = new CurrentTurnInfoDto.TurnPlayerInfo(
+                currentTurnPlayer.getId(),
+                currentTurnPlayer.getPlayer().getUsername(),
+                currentTurnPlayer.getColor(),
+                currentTurnPlayer.getTurnOrder(),
+                currentTurnPlayer.getUnallocatedArmies(),
+                currentTurnPlayer.getConqueredTerritoryThisTurn(),
+                currentTurnPlayer.getPlayer().getImageUrl()
+            );
+            
+            // Monta resposta
+            CurrentTurnInfoDto response = new CurrentTurnInfoDto(
+                game.getId(),
+                game.getName(),
+                game.getStatus(),
+                turnPlayerInfo,
+                isMyTurn,
+                totalPlayers,
+                (int) activePlayers
+            );
+            
+            return ResponseEntity.ok(response);
             
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
