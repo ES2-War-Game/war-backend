@@ -333,8 +333,14 @@ public class GameService {
                 .count();
         
         if (activePlayersCount == 1) {
-            game.setStatus(GameStatus.FINISHED.name());
-            gameRepository.save(game);
+            // Encontra o vencedor
+            PlayerGame winner = playerGameRepository.findByGame(game).stream()
+                    .filter(PlayerGame::getStillInGame)
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Erro ao determinar vencedor."));
+            
+            // Dispara evento de vitória por eliminação
+            winConditionService.checkWinConditions(game, winner);
         }
 
         return game;
