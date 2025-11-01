@@ -400,6 +400,7 @@ public class GameController {
             Game updatedGame = gameService.allocateTroops(gameId, username, territoryId, count);
             GameStateResponseDto gameState = convertToGameStateDto(updatedGame);
             
+            // Sempre envia estado atualizado via WebSocket, mesmo se o jogo terminou
             messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", gameState);
             return ResponseEntity.ok(gameState);
 
@@ -423,6 +424,7 @@ public class GameController {
             Game updatedGame = gameService.startNextTurn(gameId, username);
             GameStateResponseDto gameState = convertToGameStateDto(updatedGame);
 
+            // Sempre envia estado atualizado via WebSocket, mesmo se o jogo terminou
             messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", gameState);
 
             return ResponseEntity.ok(gameState);

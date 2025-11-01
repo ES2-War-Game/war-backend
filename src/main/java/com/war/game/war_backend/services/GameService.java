@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
-import com.war.game.war_backend.controller.dto.response.GameResultResponse;
 import com.war.game.war_backend.events.GameOverEvent;
 import com.war.game.war_backend.model.Card;
 import com.war.game.war_backend.model.Game;
@@ -813,12 +812,6 @@ public class GameService {
             System.out.println("Território conquistado!");
         }
         
-        if (GameStatus.FINISHED.name().equals(game.getStatus())) {
-            return game; 
-        }
-
-        // Se o jogo não terminou notifica e retorna como de costume
-        messagingTemplate.convertAndSend("/topic/game/" + gameId + "/status", game);
         return game;
     }
 
@@ -863,36 +856,22 @@ public class GameService {
         }
     }
 
-    @EventListener // Anotação crucial para ouvir o evento
-    @Transactional // Mantém a garantia de persistência
+    @EventListener
+    @Transactional
     public void endGameListener(GameOverEvent event) {
         // Extrair os dados do Evento
         Game game = event.getGame();
         PlayerGame winner = event.getWinner();
-        String condition = event.getCondition();
-        String description = event.getObjectiveDescription();
         
         // Atualizar o estado do jogo e persistir
         game.setStatus(GameStatus.FINISHED.name()); 
         game.setWinner(winner); 
         gameRepository.save(game);
         
-        // Notificação
-        GameResultResponse response = new GameResultResponse();
-        
-        response.setWinningPlayerId(winner.getId());
-        response.setWinningPlayerName(winner.getUsername()); 
-        response.setWinningPlayerColor(winner.getColor());           
-        response.setWinningPlayerImageUrl(winner.getImageUrl()); 
-        
-        response.setWinningCondition(condition);
-        response.setObjectiveDescription(description);
-        
-        // Envia a notificação via WebSocket
-        String topic = "/topic/game/" + game.getId() + "/status"; 
-        messagingTemplate.convertAndSend(topic, response);
-        
         System.out.println("Jogo " + game.getId() + " finalizado. Vencedor: " + winner.getUsername());
+        
+        // Nota: A notificação WebSocket é enviada pelo GameController via /topic/game/{gameId}/state
+        // com o GameStateResponseDto completo que já inclui o winner e status FINISHED
     }
 
     // AUXILIARES ==================================
