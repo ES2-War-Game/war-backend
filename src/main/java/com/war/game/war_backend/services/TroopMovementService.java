@@ -50,11 +50,12 @@ public class TroopMovementService {
             throw new IllegalStateException("Game is not in progress");
         }
         
-        // Get source and target territories
-        GameTerritory sourceTerritory = gameTerritoryRepository.findById(request.getSourceTerritory())
+        // ✅ CONSISTENCY FIX: Use Territory.id instead of GameTerritory.id
+        // Get source and target territories by Territory.id within the Game
+        GameTerritory sourceTerritory = gameTerritoryRepository.findByGame_IdAndTerritory_Id(request.getGameId(), request.getSourceTerritory())
                 .orElseThrow(() -> new IllegalArgumentException("Source territory not found"));
         
-        GameTerritory targetTerritory = gameTerritoryRepository.findById(request.getTargetTerritory())
+        GameTerritory targetTerritory = gameTerritoryRepository.findByGame_IdAndTerritory_Id(request.getGameId(), request.getTargetTerritory())
                 .orElseThrow(() -> new IllegalArgumentException("Target territory not found"));
 
         // Get the player's game and validate it's their turn

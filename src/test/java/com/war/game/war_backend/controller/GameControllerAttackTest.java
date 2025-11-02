@@ -68,7 +68,6 @@ class GameControllerAttackTest {
     attackRequest.setSourceTerritoryId(10L);
     attackRequest.setTargetTerritoryId(11L);
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     Game mockGame = new Game();
     mockGame.setId(gameId);
@@ -100,7 +99,6 @@ class GameControllerAttackTest {
     attackRequest.setSourceTerritoryId(10L);
     attackRequest.setTargetTerritoryId(11L);
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
         .thenThrow(new RuntimeException("Ação inválida. A partida não está na fase de Ataque."));
@@ -121,7 +119,6 @@ class GameControllerAttackTest {
     attackRequest.setSourceTerritoryId(10L);
     attackRequest.setTargetTerritoryId(11L);
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
         .thenThrow(new RuntimeException("Não é o seu turno para atacar."));
@@ -142,7 +139,6 @@ class GameControllerAttackTest {
     attackRequest.setSourceTerritoryId(10L);
     attackRequest.setTargetTerritoryId(11L);
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
         .thenThrow(new RuntimeException("O território BRASIL não é vizinho do território atacante."));
@@ -163,7 +159,6 @@ class GameControllerAttackTest {
     attackRequest.setSourceTerritoryId(10L);
     attackRequest.setTargetTerritoryId(11L);
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
         .thenThrow(new RuntimeException("Você não pode atacar seu próprio território."));
@@ -184,32 +179,10 @@ class GameControllerAttackTest {
     attackRequest.setSourceTerritoryId(10L);
     attackRequest.setTargetTerritoryId(11L);
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
         .thenThrow(new RuntimeException(
             "Você deve deixar pelo menos um exército no território atacante. Máximo de dados de ataque permitido: 2"));
-
-    // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(attackRequest))
-        .principal(principal))
-        .andExpect(status().isBadRequest());
-  }
-
-  @Test
-  void attackTerritory_WithInvalidTroopsMovement_ShouldReturnBadRequest() throws Exception {
-    // Arrange
-    Long gameId = 1L;
-    AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(10L);
-    attackRequest.setTargetTerritoryId(11L);
-    attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(1); // Menor que dados usados
-
-    when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
-        .thenThrow(new RuntimeException("Movimento de exércitos inválido após a conquista. Mínimo: 3, Máximo: 4."));
 
     // Act & Assert
     mockMvc.perform(post("/api/games/{gameId}/attack", gameId)
@@ -227,7 +200,6 @@ class GameControllerAttackTest {
     attackRequest.setSourceTerritoryId(999L);
     attackRequest.setTargetTerritoryId(11L);
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
         .thenThrow(new RuntimeException("Território atacante não encontrado."));

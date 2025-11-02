@@ -29,6 +29,7 @@ import com.war.game.war_backend.model.PlayerGame;
 import com.war.game.war_backend.model.enums.GameStatus;
 import com.war.game.war_backend.services.GameService;
 import com.war.game.war_backend.services.PlayerService;
+import com.war.game.war_backend.exceptions.InvalidGamePhaseException;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -404,6 +405,8 @@ public class GameController {
             messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", gameState);
             return ResponseEntity.ok(gameState);
 
+        } catch (InvalidGamePhaseException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -429,6 +432,8 @@ public class GameController {
 
             return ResponseEntity.ok(gameState);
 
+        } catch (InvalidGamePhaseException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -463,6 +468,8 @@ public class GameController {
 
             messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", gameState);
             return ResponseEntity.ok(gameState);
+        } catch (InvalidGamePhaseException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -492,6 +499,8 @@ public class GameController {
             messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", gameState);
             return ResponseEntity.ok(gameState);
             
+        } catch (InvalidGamePhaseException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -564,7 +573,9 @@ public class GameController {
     
     private GameStateResponseDto.GameTerritoryDto convertToGameTerritoryDto(com.war.game.war_backend.model.GameTerritory gt) {
         GameStateResponseDto.GameTerritoryDto dto = new GameStateResponseDto.GameTerritoryDto();
-        dto.setId(gt.getId());
+        // ✅ CRITICAL FIX: Send Territory.id instead of GameTerritory.id
+        // The frontend needs the Territory.id to match attack validation
+        dto.setId(gt.getTerritory() != null ? gt.getTerritory().getId() : null);
         dto.setStaticArmies(gt.getStaticArmies());
         dto.setMovedInArmies(gt.getMovedInArmies());
         dto.setUnallocatedArmies(gt.getUnallocatedArmies());

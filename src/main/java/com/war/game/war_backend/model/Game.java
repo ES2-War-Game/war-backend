@@ -60,12 +60,12 @@ public class Game {
   @Column(name = "card_set_exchange_count", nullable = false)
   private Integer cardSetExchangeCount = 0;
 
-  // Relacionamento com PlayerGame
-  @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+  // Relacionamento com PlayerGame - LAZY para melhorar performance
+  @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   private Set<PlayerGame> playerGames = new HashSet<>();
 
   // Relacionamento com GameTerritory
-  @OneToMany(mappedBy = "game")
+  @OneToMany(mappedBy = "game", fetch = FetchType.LAZY)
   private Set<GameTerritory> gameTerritories;
 
   public List<Player> getPlayers() {

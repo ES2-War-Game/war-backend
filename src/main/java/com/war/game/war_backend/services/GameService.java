@@ -30,6 +30,7 @@ import com.war.game.war_backend.model.enums.CardType;
 import com.war.game.war_backend.model.enums.GameConstants;
 import com.war.game.war_backend.model.enums.GameStatus;
 import com.war.game.war_backend.repository.CardRepository;
+import com.war.game.war_backend.exceptions.InvalidGamePhaseException;
 import com.war.game.war_backend.repository.GameRepository;
 import com.war.game.war_backend.repository.GameTerritoryRepository;
 import com.war.game.war_backend.repository.ObjectiveRepository;
@@ -38,11 +39,16 @@ import com.war.game.war_backend.repository.PlayerGameRepository;
 import com.war.game.war_backend.repository.TerritoryBorderRepository;
 import com.war.game.war_backend.repository.TerritoryRepository;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class GameService {
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private final GameRepository gameRepository;
     private final PlayerGameRepository playerGameRepository;
@@ -67,9 +73,56 @@ public class GameService {
         "Oceania", 2
     );
 
-    // Método auxiliar para notificar mudanças em um lobby via WebSocket
-    private void notifyLobbyUpdate(Game lobby) {
-        List<com.war.game.war_backend.controller.dto.response.PlayerLobbyDtoResponse> playerDtos = lobby.getPlayerGames().stream()
+    // Método auxiliar para remover jogador de lobbies ativos
+    @Transactional
+    public void removePlayerFromActiveLobbies(Player player) {
+        List<PlayerGame> activeLobbies = playerGameRepository.findByPlayerAndGame_Status(player, GameStatus.LOBBY.name());
+        
+        for (PlayerGame activeLobbyPlayerGame : activeLobbies) {
+            Game activeLobby = activeLobbyPlayerGame.getGame();
+            boolean wasOwner = activeLobbyPlayerGame.getIsOwner();
+            Long lobbyId = activeLobby.getId();
+            Long playerGameIdToDelete = activeLobbyPlayerGame.getId();
+            
+            // Remove da coleção do Game para evitar que o cascade re-persista
+            activeLobby.getPlayerGames().remove(activeLobbyPlayerGame);
+            
+            // Executa o delete nativo (SQL direto) que ignora o cache do Hibernate
+            playerGameRepository.deleteByIdNative(playerGameIdToDelete);
+            
+            // Força flush e limpa o cache do EntityManager
+            playerGameRepository.flush();
+            entityManager.clear();
+            
+            // Busca os jogadores restantes diretamente do banco (após o delete)
+            List<PlayerGame> remainingPlayers = playerGameRepository.findByGame(activeLobby);
+            
+            // Se o jogador era dono, transfere a propriedade ou deleta o lobby
+            if (wasOwner) {
+                if (!remainingPlayers.isEmpty()) {
+                    // Define o próximo jogador como novo dono
+                    PlayerGame newOwner = remainingPlayers.get(0);
+                    newOwner.setIsOwner(true);
+                    playerGameRepository.save(newOwner);
+                    playerGameRepository.flush();
+                    
+                    // Envia notificação WebSocket usando os jogadores atualizados do banco
+                    notifyLobbyUpdateWithPlayers(lobbyId, remainingPlayers);
+                } else {
+                    // Se não houver mais jogadores, exclui o lobby
+                    gameRepository.deleteById(lobbyId);
+                    gameRepository.flush();
+                }
+            } else {
+                // Jogador comum saiu, notifica o lobby usando os jogadores atualizados
+                notifyLobbyUpdateWithPlayers(lobbyId, remainingPlayers);
+            }
+        }
+    }
+    
+    // Método auxiliar para notificar mudanças em um lobby via WebSocket (usando lista de jogadores atualizada)
+    private void notifyLobbyUpdateWithPlayers(Long lobbyId, List<PlayerGame> currentPlayers) {
+        List<com.war.game.war_backend.controller.dto.response.PlayerLobbyDtoResponse> playerDtos = currentPlayers.stream()
             .map(pg -> new com.war.game.war_backend.controller.dto.response.PlayerLobbyDtoResponse(
                 pg.getId(),
                 pg.getPlayer().getUsername(),
@@ -79,13 +132,17 @@ public class GameService {
             ))
             .collect(Collectors.toList());
         
-        messagingTemplate.convertAndSend("/topic/lobby/" + lobby.getId() + "/state", playerDtos);
+        messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId + "/state", playerDtos);
     }
 
     // LOBBY =======================================
 
     @Transactional 
     public Game createNewLobby(String lobbyName, Player creator) {
+        // Remove o jogador de outros lobbies ativos antes de criar um novo
+        removePlayerFromActiveLobbies(creator);
+        
+        // Cria o novo lobby
         Game newGame = new Game();
         newGame.setName(lobbyName);
         newGame.setStatus(GameStatus.LOBBY.name()); 
@@ -93,8 +150,6 @@ public class GameService {
 
         gameRepository.save(newGame);
 
-        // --- LÓGICA DE ATRIBUIÇÃO DE COR E DADOS DO JOGADOR ---
-        
         // O criador do lobby é o primeiro jogador, atribuímos a primeira cor da lista
         String assignedColor = GameConstants.AVAILABLE_COLORS.get(0); 
         
@@ -102,15 +157,9 @@ public class GameService {
         PlayerGame creatorPlayerGame = new PlayerGame();
         creatorPlayerGame.setGame(newGame);
         creatorPlayerGame.setPlayer(creator);
-        
-        // Configurando as propriedades do PlayerGame
         creatorPlayerGame.setIsOwner(true);
         creatorPlayerGame.setStillInGame(true); 
-
-        // Adicionando a cor
         creatorPlayerGame.setColor(assignedColor); 
-        
-        // Copiando as propriedades do Player para o PlayerGame
         creatorPlayerGame.setUsername(creator.getUsername()); 
         creatorPlayerGame.setImageUrl(creator.getImageUrl()); 
 
@@ -151,59 +200,26 @@ public class GameService {
             throw new RuntimeException("Não é possível entrar. O jogo já foi iniciado ou tem status inválido.");
         }
         
-        // Verifica se o jogador está em algum jogo ativo (não finalizado/cancelado)
-        Game currentGame = findCurrentGameForPlayer(player);
-        if (currentGame != null) {
-            throw new RuntimeException("Você já está em um jogo ativo. Saia do jogo atual antes de entrar em outro lobby.");
-        }
-        
-        // Remove o jogador de outros lobbies ativos (status LOBBY) ANTES de verificar se já está no lobby atual
-        List<PlayerGame> activeLobbies = playerGameRepository.findByPlayerAndGame_Status(player, GameStatus.LOBBY.name());
-        for (PlayerGame activeLobbyPlayerGame : activeLobbies) {
-            Game activeLobby = activeLobbyPlayerGame.getGame();
-            
-            // Pula o lobby atual (que o jogador está tentando entrar)
-            if (activeLobby.getId().equals(lobbyId)) {
-                continue;
-            }
-            
-            // Remove o jogador do lobby anterior
-            activeLobby.getPlayerGames().remove(activeLobbyPlayerGame);
-            playerGameRepository.delete(activeLobbyPlayerGame);
-            
-            // Se o jogador era dono, transfere a propriedade ou deleta o lobby
-            if (activeLobbyPlayerGame.getIsOwner()) {
-                Set<PlayerGame> remainingPlayers = activeLobby.getPlayerGames();
-                
-                if (!remainingPlayers.isEmpty()) {
-                    // Define o próximo jogador como novo dono
-                    List<PlayerGame> remainingPlayersList = new ArrayList<>(remainingPlayers);
-                    PlayerGame newOwner = remainingPlayersList.get(0);
-                    newOwner.setIsOwner(true);
-                    playerGameRepository.save(newOwner);
-                    
-                    // Envia notificação WebSocket para o lobby antigo informando a saída do jogador
-                    notifyLobbyUpdate(activeLobby);
-                } else {
-                    // Se não houver mais jogadores, exclui o lobby
-                    gameRepository.delete(activeLobby);
-                    // Lobby deletado, nenhuma notificação necessária (ninguém para receber)
-                }
-            } else {
-                // Jogador comum saiu, notifica o lobby antigo
-                notifyLobbyUpdate(activeLobby);
-            }
-        }
-        
-        // Verifica se o jogador já está neste lobby específico (após a limpeza de outros lobbies)
-        // Se já estiver, retorna o jogo sem fazer nada (operação idempotente)
+        // Verifica se o jogador já está neste lobby específico ANTES de consultar outros lobbies
         Optional<PlayerGame> existingPlayerGame = playerGameRepository.findByGameAndPlayer(game, player);
+        
         if (existingPlayerGame.isPresent()) {
-            return game; // Jogador já está no lobby, retorna sucesso
+            return game; // Jogador já está no lobby, retorna sucesso (operação idempotente)
+        }
+        
+        // Remove o jogador de outros lobbies ativos (transação separada)
+        removePlayerFromActiveLobbies(player);
+        
+        // Verifica se o jogador está em algum jogo realmente ativo (não lobby, não finalizado/cancelado)
+        Game currentGame = findCurrentGameForPlayer(player);
+        
+        if (currentGame != null && !GameStatus.LOBBY.name().equals(currentGame.getStatus())) {
+            throw new RuntimeException("Você já está em um jogo ativo. Saia do jogo atual antes de entrar em outro lobby.");
         }
 
         // Checagem de limite de jogadores
         Set<PlayerGame> currentPlayers = game.getPlayerGames();
+        
         if (currentPlayers.size() >= GameConstants.MAX_PLAYERS) {
             throw new RuntimeException("Lobby cheio. Número máximo de jogadores alcançado (" + GameConstants.MAX_PLAYERS + ").");
         }
@@ -221,7 +237,7 @@ public class GameService {
                                 .filter(color -> !usedColors.contains(color))
                                 .findFirst()
                                 .orElseThrow(() -> new RuntimeException("Erro interno: Nenhuma cor disponível."));
-
+        
         // ------------------------------------
 
         // Cria a entidade PlayerGame para o novo jogador
@@ -240,7 +256,7 @@ public class GameService {
         playerGameRepository.save(newPlayerGame);
         
         game.getPlayerGames().add(newPlayerGame);
-
+        
         return game;
     }
 
@@ -449,18 +465,31 @@ public class GameService {
 
     @Transactional // A mesma para alocação inicial e de reforço
     public Game allocateTroops(Long gameId, String username, Long territoryId, Integer count) {
+        System.out.println("\n=== INÍCIO ALOCAÇÃO DE TROPAS ===");
+        System.out.println("GameId: " + gameId);
+        System.out.println("Username: " + username);
+        System.out.println("TerritoryId (recebido): " + territoryId);
+        System.out.println("Count: " + count);
+        
         Game game = gameRepository.findById(gameId)
             .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
 
         String currentStatus = game.getStatus();
+        System.out.println("Game Status: " + currentStatus);
         
         if (!GameStatus.SETUP_ALLOCATION.name().equals(currentStatus) && !GameStatus.REINFORCEMENT.name().equals(currentStatus)) {
-            throw new RuntimeException("Não é a fase de alocação de tropas.");
+            throw new InvalidGamePhaseException(
+                "Não é a fase de alocação de tropas. Fase atual: " + currentStatus,
+                currentStatus,
+                "SETUP_ALLOCATION ou REINFORCEMENT"
+            );
         }
         
         Player player = playerService.getPlayerByUsername(username);
         PlayerGame currentPlayerGame = playerGameRepository.findByGameAndPlayer(game, player)
             .orElseThrow(() -> new RuntimeException("Jogador não está na partida."));
+
+        System.out.println("CurrentPlayerGame ID: " + currentPlayerGame.getId());
 
         // Validação de tropas e count
         if (currentPlayerGame.getUnallocatedArmies() < count || count <= 0) {
@@ -468,7 +497,7 @@ public class GameService {
         }
 
         // Validação de Turno (apenas para a fase de reforço)
-        if (GameStatus.REINFORCEMENT.name().equals(currentStatus) && !game.getTurnPlayer().equals(currentPlayerGame)) {
+        if (GameStatus.REINFORCEMENT.name().equals(currentStatus) && !game.getTurnPlayer().getId().equals(currentPlayerGame.getId())) {
             throw new RuntimeException("Não é a sua vez de alocar tropas.");
         }
 
@@ -476,10 +505,23 @@ public class GameService {
         GameTerritory gameTerritory = gameTerritoryRepository.findByGameAndTerritoryId(game, territoryId) 
             .orElseThrow(() -> new RuntimeException("Território não encontrado nesta partida."));
 
-        // Validação de Posse
-        if (!gameTerritory.getOwner().equals(currentPlayerGame)) {
+        System.out.println("\n--- VALIDAÇÃO DE POSSE (ALOCAÇÃO) ---");
+        System.out.println("GameTerritory encontrado:");
+        System.out.println("  - GameTerritory ID: " + gameTerritory.getId());
+        System.out.println("  - Territory ID: " + gameTerritory.getTerritory().getId());
+        System.out.println("  - Territory Name: " + gameTerritory.getTerritory().getName());
+        System.out.println("  - Owner (PlayerGame) ID: " + gameTerritory.getOwner().getId());
+        System.out.println("  - Owner Username: " + gameTerritory.getOwner().getPlayer().getUsername());
+        System.out.println("CurrentPlayerGame ID: " + currentPlayerGame.getId());
+        System.out.println("IDs iguais? " + gameTerritory.getOwner().getId().equals(currentPlayerGame.getId()));
+
+        // Validação de Posse - Compara IDs ao invés de objetos
+        if (!gameTerritory.getOwner().getId().equals(currentPlayerGame.getId())) {
+            System.out.println("❌ ERRO: Owner ID (" + gameTerritory.getOwner().getId() + ") != CurrentPlayer ID (" + currentPlayerGame.getId() + ")");
             throw new RuntimeException("Você só pode colocar tropas em seus próprios territórios.");
         }
+        
+        System.out.println("✅ Validação de posse OK - Alocando " + count + " tropas");
 
         // APLICAR A ALOCAÇÃO
         // Tropas alocadas são sempre estáticas e podem se mover
@@ -590,7 +632,11 @@ public class GameService {
             GameStatus.FINISHED.name().equals(currentStatus) ||
             GameStatus.CANCELED.name().equals(currentStatus) ) {
             
-            throw new RuntimeException("A ação de encerrar o turno não é válida na fase atual: " + currentStatus);
+            throw new InvalidGamePhaseException(
+                "A ação de encerrar o turno não é válida na fase atual: " + currentStatus,
+                currentStatus,
+                "REINFORCEMENT, ATTACK ou MOVEMENT"
+            );
         }
 
         // Achar o jogador atual e validar se a chamada é dele
@@ -679,11 +725,16 @@ public class GameService {
         Player player = playerService.getPlayerByUsername(username);
         PlayerGame playerGame = playerGameRepository.findByGameAndPlayer(game, player).orElseThrow(() -> new RuntimeException("Jogador não está na partida."));
 
-        if (!game.getTurnPlayer().equals(playerGame)) {
+        // Compara IDs ao invés de objetos
+        if (!game.getTurnPlayer().getId().equals(playerGame.getId())) {
             throw new RuntimeException("Não é o seu turno.");
         }
-        if (!"In Game - Reinforcement".equals(game.getStatus())) {
-            throw new RuntimeException("Só é permitido trocar cartas na fase de reforço.");
+        if (!GameStatus.REINFORCEMENT.name().equals(game.getStatus())) {
+            throw new InvalidGamePhaseException(
+                "Só é permitido trocar cartas na fase de reforço. Fase atual: " + game.getStatus(),
+                game.getStatus(),
+                "REINFORCEMENT"
+            );
         }
         
         // Busca as entidades PlayerCard e Card
@@ -720,29 +771,60 @@ public class GameService {
 
     @Transactional
     public Game attackTerritory(Long gameId, String initiatingUsername, AttackRequestDto dto) {
+        System.out.println("\n=== INÍCIO ATAQUE ===");
+        System.out.println("GameId: " + gameId);
+        System.out.println("Username: " + initiatingUsername);
+        System.out.println("SourceTerritoryId: " + dto.getSourceTerritoryId());
+        System.out.println("TargetTerritoryId: " + dto.getTargetTerritoryId());
+        System.out.println("AttackDiceCount: " + dto.getAttackDiceCount());
+        
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
 
+        System.out.println("Game encontrado. Status: " + game.getStatus());
+
         if (!GameStatus.ATTACK.name().equals(game.getStatus())) {
-            throw new RuntimeException("Ação inválida. A partida não está na fase de Ataque.");
+            throw new InvalidGamePhaseException(
+                "Ação inválida. A partida não está na fase de Ataque. Fase atual: " + game.getStatus(),
+                game.getStatus(),
+                "ATTACK"
+            );
         }
 
         PlayerGame currentPlayerGame = game.getTurnPlayer();
+        System.out.println("TurnPlayer ID: " + currentPlayerGame.getId());
+        System.out.println("TurnPlayer Username: " + currentPlayerGame.getPlayer().getUsername());
+        
         if (!currentPlayerGame.getPlayer().getUsername().equals(initiatingUsername)) {
             throw new RuntimeException("Não é o seu turno para atacar.");
         }
 
-        // Busca de Territórios
-        GameTerritory sourceTerritory = gameTerritoryRepository.findById(dto.getSourceTerritoryId())
+        // ✅ CRITICAL FIX: Busca GameTerritory pelo Territory.id (não pelo GameTerritory.id)
+        // O frontend envia Territory.id, então precisamos buscar o GameTerritory correspondente no Game
+        GameTerritory sourceTerritory = gameTerritoryRepository.findByGame_IdAndTerritory_Id(gameId, dto.getSourceTerritoryId())
                 .orElseThrow(() -> new RuntimeException("Território atacante não encontrado."));
-        GameTerritory targetTerritory = gameTerritoryRepository.findById(dto.getTargetTerritoryId())
+        GameTerritory targetTerritory = gameTerritoryRepository.findByGame_IdAndTerritory_Id(gameId, dto.getTargetTerritoryId())
                 .orElseThrow(() -> new RuntimeException("Território defensor não encontrado."));
 
+        System.out.println("\n--- VALIDAÇÃO DE POSSE ---");
+        System.out.println("Source Territory:");
+        System.out.println("  - GameTerritory ID: " + sourceTerritory.getId());
+        System.out.println("  - Territory Name: " + sourceTerritory.getTerritory().getName());
+        System.out.println("  - Owner (PlayerGame) ID: " + sourceTerritory.getOwner().getId());
+        System.out.println("  - Owner Username: " + sourceTerritory.getOwner().getPlayer().getUsername());
+        System.out.println("CurrentPlayerGame ID: " + currentPlayerGame.getId());
+        System.out.println("IDs iguais? " + sourceTerritory.getOwner().getId().equals(currentPlayerGame.getId()));
+        
         // Validação de Posse, Vizinhança e Tropas
-        if (!sourceTerritory.getOwner().equals(currentPlayerGame)) {
+        // Compara IDs ao invés de objetos para evitar problemas com cache do EntityManager
+        if (!sourceTerritory.getOwner().getId().equals(currentPlayerGame.getId())) {
+            System.out.println("❌ ERRO: Owner ID (" + sourceTerritory.getOwner().getId() + ") != CurrentPlayer ID (" + currentPlayerGame.getId() + ")");
             throw new RuntimeException("O território atacante não pertence a você.");
         }
-        if (targetTerritory.getOwner().equals(currentPlayerGame)) {
+        
+        System.out.println("✅ Validação de posse OK");
+        
+        if (targetTerritory.getOwner().getId().equals(currentPlayerGame.getId())) {
             throw new RuntimeException("Você não pode atacar seu próprio território.");
         }
         
@@ -759,8 +841,22 @@ public class GameService {
         // Validação de Tropas do Atacante e Dados
         // Para ataque, consideramos apenas tropas estáticas (que não se moveram)
         int armiesAvailable = sourceTerritory.getStaticArmies();
-        if (armiesAvailable <= dto.getAttackDiceCount()) {
-            throw new RuntimeException("Você deve deixar pelo menos um exército no território atacante. Máximo de dados de ataque permitido: " + (armiesAvailable - 1));
+        
+        // Validação 1: O território atacante deve ter pelo menos 2 tropas (1 para atacar, 1 para ficar)
+        if (armiesAvailable < 2) {
+            throw new RuntimeException("Você precisa de pelo menos 2 exércitos no território atacante para realizar um ataque.");
+        }
+        
+        // Validação 2: O número de dados deve estar entre 1 e 3
+        if (dto.getAttackDiceCount() < 1 || dto.getAttackDiceCount() > 3) {
+            throw new RuntimeException("O número de dados de ataque deve estar entre 1 e 3.");
+        }
+        
+        // Validação 3: O número de dados não pode ser maior ou igual ao número de tropas disponíveis
+        // (pois pelo menos 1 tropa deve permanecer no território)
+        int maxAttackDice = armiesAvailable - 1;
+        if (dto.getAttackDiceCount() > maxAttackDice) {
+            throw new RuntimeException("Você deve deixar pelo menos um exército no território atacante. Máximo de dados de ataque permitido: " + maxAttackDice);
         }
 
         // Determinar Dados de Defesa
@@ -804,47 +900,75 @@ public class GameService {
                 attackerLosses,
                 String.join(",", defenseRolls.stream().map(Object::toString).toList()),
                 defenderLosses);
-
-        gameTerritoryRepository.save(sourceTerritory);
-        gameTerritoryRepository.save(targetTerritory);
         
         // Lógica de Conquista
         if ((targetTerritory.getStaticArmies() + targetTerritory.getMovedInArmies()) <= 0) {
-            
-            // Validação do movimento mínimo
-            if (dto.getTroopsToMoveAfterConquest() < dto.getAttackDiceCount() || dto.getTroopsToMoveAfterConquest() >= armiesAvailable) {
-                throw new RuntimeException(String.format("Movimento de exércitos inválido após a conquista. Mínimo: %d, Máximo: %d.", dto.getAttackDiceCount(), armiesAvailable - 1));
+
+            // ✅ LÓGICA CORRIGIDA: Mover apenas as tropas que participaram e sobreviveram ao último round
+            // Regras aplicadas:
+            // - Tropas que participaram do ataque = dto.getAttackDiceCount()
+            // - Tropas perdidas do atacante neste round = attackerLosses
+            // - Tropas sobreviventes desse round = dto.getAttackDiceCount() - attackerLosses
+            // - Deve mover pelo menos 1 tropa (regra da implementação)
+            // - Nunca deixar o território atacante vazio (deve permanecer >= 1)
+
+            int sourceStaticAfterLosses = sourceTerritory.getStaticArmies(); // já subtraído attackerLosses acima
+
+            // Tropas que participaram do ataque
+            int attackedArmies = dto.getAttackDiceCount();
+            // Tropas do atacante perdidas nesse confronto
+            int attackerLossesInRound = attackerLosses;
+
+            int survivingAttackers = attackedArmies - attackerLossesInRound;
+            // Deve mover pelo menos 1 (regra da implementação)
+            int troopsToMove = Math.max(1, survivingAttackers);
+
+            // Máximo que pode mover sem deixar o território vazio
+            int maxMoveable = Math.max(0, sourceStaticAfterLosses - 1);
+
+            if (maxMoveable < 1) {
+                // Não há tropas suficientes para mover mantendo 1 no território
+                throw new RuntimeException("Erro: Não é possível mover tropas para ocupar sem deixar o território atacante vazio.");
             }
-            
+
+            // Ajusta para o máximo permitido caso necessário
+            if (troopsToMove > maxMoveable) {
+                troopsToMove = maxMoveable;
+            }
+
+            System.out.println("🎯 CONQUISTA! Movendo " + troopsToMove + " tropas para " + targetTerritory.getTerritory().getName());
+            System.out.println("   - Tropas no território atacante após perdas: " + sourceStaticAfterLosses);
+            System.out.println("   - Tropas que participaram do ataque: " + attackedArmies);
+            System.out.println("   - Tropas perdidas pelo atacante neste round: " + attackerLossesInRound);
+            System.out.println("   - Tropas a mover: " + troopsToMove);
+            System.out.println("   - Tropas que ficam no atacante: " + (sourceStaticAfterLosses - troopsToMove));
+
             // Transferência de Posse e Tropas
             targetTerritory.setOwner(currentPlayerGame);
-            // Tropas que conquistam um território ficam como moved_in e não podem se mover novamente
             targetTerritory.setStaticArmies(0);
-            targetTerritory.setMovedInArmies(dto.getTroopsToMoveAfterConquest());
-            
-            // Reduz as tropas estáticas do território atacante
-            sourceTerritory.setStaticArmies(sourceTerritory.getStaticArmies() - dto.getTroopsToMoveAfterConquest());
+            targetTerritory.setMovedInArmies(troopsToMove);
+
+            // Reduz as tropas estáticas do território atacante, deixando pelo menos 1
+            sourceTerritory.setStaticArmies(sourceStaticAfterLosses - troopsToMove);
 
             // Setar a flag de carta (Recompensa)
             currentPlayerGame.setConqueredTerritoryThisTurn(true);
-
-            // Salvar
-            gameTerritoryRepository.save(targetTerritory);
-            gameTerritoryRepository.save(sourceTerritory);
-            playerGameRepository.save(currentPlayerGame); // Salva a flag de conquista
 
             // Checar Fim de Jogo (Isto checa eliminação e, se houver, chama o winConditionService)
             checkGameOver(game, defenderPlayerGame);
 
             // 2. Checagem de Objetivo Pós-Conquista (NOVA LÓGICA)
-            if (!GameStatus.FINISHED.name().equals(game.getStatus())) { 
-                // Se o jogo não foi finalizado pelo checkGameOver (após eliminação),
-                // checamos se a conquista do território completou o objetivo do atacante.
+            if (!GameStatus.FINISHED.name().equals(game.getStatus())) {
                 winConditionService.checkObjectiveCompletion(game, currentPlayerGame);
             }
 
-            System.out.println("Território conquistado!");
+            System.out.println("✅ Território conquistado com sucesso!");
         }
+        
+        // Salvar mudanças (sempre salva, conquista ou não)
+        gameTerritoryRepository.save(targetTerritory);
+        gameTerritoryRepository.save(sourceTerritory);
+        playerGameRepository.save(currentPlayerGame);
         
         return game;
     }

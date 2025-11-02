@@ -23,7 +23,7 @@ COPY src src
 ARG SKIP_TESTS=false
 
 RUN if [ "$SKIP_TESTS" = "true" ] ; then \
-      echo "Building without tests..." && ./mvnw clean package -DskipTests ; \
+      echo "Building without tests..." && ./mvnw clean package -Dmaven.test.skip=true ; \
     else \
       echo "Building with tests..." && ./mvnw clean package ; \
     fi

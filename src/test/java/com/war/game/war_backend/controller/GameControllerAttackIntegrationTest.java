@@ -185,10 +185,9 @@ class GameControllerAttackIntegrationTest {
   void attackTerritory_WithValidData_ShouldReturnSuccess() throws Exception {
     // Arrange
     AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(sourceGameTerritory.getId());
-    attackRequest.setTargetTerritoryId(targetGameTerritory.getId());
+    attackRequest.setSourceTerritoryId(sourceGameTerritory.getTerritory().getId()); // Usar Territory.id
+    attackRequest.setTargetTerritoryId(targetGameTerritory.getTerritory().getId()); // Usar Territory.id
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
     mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
@@ -204,10 +203,9 @@ class GameControllerAttackIntegrationTest {
   void attackTerritory_WithoutAuthentication_ShouldReturnForbidden() throws Exception {
     // Arrange
     AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(sourceGameTerritory.getId());
-    attackRequest.setTargetTerritoryId(targetGameTerritory.getId());
+    attackRequest.setSourceTerritoryId(sourceGameTerritory.getTerritory().getId());
+    attackRequest.setTargetTerritoryId(targetGameTerritory.getTerritory().getId());
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
     mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
@@ -223,17 +221,16 @@ class GameControllerAttackIntegrationTest {
     gameRepository.save(testGame);
 
     AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(sourceGameTerritory.getId());
-    attackRequest.setTargetTerritoryId(targetGameTerritory.getId());
+    attackRequest.setSourceTerritoryId(sourceGameTerritory.getTerritory().getId());
+    attackRequest.setTargetTerritoryId(targetGameTerritory.getTerritory().getId());
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
-    // Act & Assert
+    // Act & Assert - Espera HTTP 409 CONFLICT para fase inválida
     mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
         .header("Authorization", attackerAuthToken)
         .contentType(MediaType.APPLICATION_JSON)
         .content(objectMapper.writeValueAsString(attackRequest)))
-        .andExpect(status().isBadRequest());
+        .andExpect(status().isConflict()); // 409 para fase inválida
   }
 
   @Test
@@ -243,10 +240,9 @@ class GameControllerAttackIntegrationTest {
     gameRepository.save(testGame);
 
     AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(sourceGameTerritory.getId());
-    attackRequest.setTargetTerritoryId(targetGameTerritory.getId());
+    attackRequest.setSourceTerritoryId(sourceGameTerritory.getTerritory().getId());
+    attackRequest.setTargetTerritoryId(targetGameTerritory.getTerritory().getId());
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
     mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
@@ -263,10 +259,9 @@ class GameControllerAttackIntegrationTest {
     gameTerritoryRepository.save(targetGameTerritory);
 
     AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(sourceGameTerritory.getId());
-    attackRequest.setTargetTerritoryId(targetGameTerritory.getId());
+    attackRequest.setSourceTerritoryId(sourceGameTerritory.getTerritory().getId());
+    attackRequest.setTargetTerritoryId(targetGameTerritory.getTerritory().getId());
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
     mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
@@ -284,10 +279,9 @@ class GameControllerAttackIntegrationTest {
     gameTerritoryRepository.save(sourceGameTerritory);
 
     AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(sourceGameTerritory.getId());
-    attackRequest.setTargetTerritoryId(targetGameTerritory.getId());
+    attackRequest.setSourceTerritoryId(sourceGameTerritory.getTerritory().getId());
+    attackRequest.setTargetTerritoryId(targetGameTerritory.getTerritory().getId());
     attackRequest.setAttackDiceCount(3); // Máximo seria 2 (3 tropas - 1 que deve ficar)
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
     mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
@@ -301,10 +295,9 @@ class GameControllerAttackIntegrationTest {
   void attackTerritory_WithInvalidGameId_ShouldReturnBadRequest() throws Exception {
     // Arrange
     AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(sourceGameTerritory.getId());
-    attackRequest.setTargetTerritoryId(targetGameTerritory.getId());
+    attackRequest.setSourceTerritoryId(sourceGameTerritory.getTerritory().getId());
+    attackRequest.setTargetTerritoryId(targetGameTerritory.getTerritory().getId());
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
     mockMvc.perform(post("/api/games/{gameId}/attack", 999L)
@@ -319,9 +312,8 @@ class GameControllerAttackIntegrationTest {
     // Arrange
     AttackRequestDto attackRequest = new AttackRequestDto();
     attackRequest.setSourceTerritoryId(999L); // ID inválido
-    attackRequest.setTargetTerritoryId(targetGameTerritory.getId());
+    attackRequest.setTargetTerritoryId(targetGameTerritory.getTerritory().getId());
     attackRequest.setAttackDiceCount(3);
-    attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
     mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
