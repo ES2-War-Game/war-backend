@@ -171,7 +171,7 @@ public class GameService {
     }
 
     public List<Game> findAllLobbies() {
-        return gameRepository.findByStatus(GameStatus.LOBBY.name());
+        return gameRepository.findByStatusWithPlayers(GameStatus.LOBBY.name());
     }
 
     public Game findCurrentGameForPlayer(Player player) {
@@ -193,63 +193,49 @@ public class GameService {
 
     @Transactional
     public Game addPlayerToLobby(Long lobbyId, Player player) {
-        Game game = gameRepository.findById(lobbyId)
+        Game game = gameRepository.findByIdWithPlayers(lobbyId)
                 .orElseThrow(() -> new RuntimeException("Lobby não encontrado."));
 
         if (!GameStatus.LOBBY.name().equals(game.getStatus())) {
             throw new RuntimeException("Não é possível entrar. O jogo já foi iniciado ou tem status inválido.");
         }
         
-        // Verifica se o jogador já está neste lobby específico ANTES de consultar outros lobbies
         Optional<PlayerGame> existingPlayerGame = playerGameRepository.findByGameAndPlayer(game, player);
         
         if (existingPlayerGame.isPresent()) {
-            return game; // Jogador já está no lobby, retorna sucesso (operação idempotente)
+            return game;
         }
         
-        // Remove o jogador de outros lobbies ativos (transação separada)
         removePlayerFromActiveLobbies(player);
         
-        // Verifica se o jogador está em algum jogo realmente ativo (não lobby, não finalizado/cancelado)
         Game currentGame = findCurrentGameForPlayer(player);
         
         if (currentGame != null && !GameStatus.LOBBY.name().equals(currentGame.getStatus())) {
             throw new RuntimeException("Você já está em um jogo ativo. Saia do jogo atual antes de entrar em outro lobby.");
         }
 
-        // Checagem de limite de jogadores
         Set<PlayerGame> currentPlayers = game.getPlayerGames();
         
         if (currentPlayers.size() >= GameConstants.MAX_PLAYERS) {
             throw new RuntimeException("Lobby cheio. Número máximo de jogadores alcançado (" + GameConstants.MAX_PLAYERS + ").");
         }
         
-        // --- LÓGICA DE ATRIBUIÇÃO DE COR ---
-        
-        // Encontra todas as cores já utilizadas neste jogo
         Set<String> usedColors = currentPlayers.stream()
                                 .map(PlayerGame::getColor)
                                 .filter(java.util.Objects::nonNull)
                                 .collect(Collectors.toSet());
 
-        // Encontra a primeira cor disponível (na ordem de GameConstants.AVAILABLE_COLORS)
         String assignedColor = GameConstants.AVAILABLE_COLORS.stream()
                                 .filter(color -> !usedColors.contains(color))
                                 .findFirst()
                                 .orElseThrow(() -> new RuntimeException("Erro interno: Nenhuma cor disponível."));
-        
-        // ------------------------------------
 
-        // Cria a entidade PlayerGame para o novo jogador
         PlayerGame newPlayerGame = new PlayerGame();
         newPlayerGame.setGame(game);
         newPlayerGame.setPlayer(player);
         newPlayerGame.setIsOwner(false);
         newPlayerGame.setStillInGame(true); 
-        
-        // Adicionando a cor
         newPlayerGame.setColor(assignedColor); 
-        
         newPlayerGame.setUsername(player.getUsername()); 
         newPlayerGame.setImageUrl(player.getImageUrl()); 
 
@@ -675,7 +661,17 @@ public class GameService {
             // 2. Reset de Flag
             currentPlayerGame.setConqueredTerritoryThisTurn(false);
             
-            // 3. Buscar os jogadores ativos, ordenados por turnOrder
+            // 3. Converter tropas movidas em estáticas (início de novo turno)
+            List<GameTerritory> allTerritories = gameTerritoryRepository.findByGame(game);
+            for (GameTerritory territory : allTerritories) {
+                if (territory.getMovedInArmies() > 0) {
+                    territory.setStaticArmies(territory.getStaticArmies() + territory.getMovedInArmies());
+                    territory.setMovedInArmies(0);
+                }
+            }
+            gameTerritoryRepository.saveAll(allTerritories);
+            
+            // 4. Buscar os jogadores ativos, ordenados por turnOrder
             List<PlayerGame> activePlayers = playerGameRepository.findByGame(game).stream()
                 .filter(PlayerGame::getStillInGame) // <--- FILTRO CRUCIAL
                 .sorted(Comparator.comparing(PlayerGame::getTurnOrder))
@@ -689,7 +685,7 @@ public class GameService {
                 throw new RuntimeException("Erro de estado do jogo. Nenhum jogador ativo para avançar.");
             }
             
-            // 4. Determinar o Próximo Jogador Ativo
+            // 5. Determinar o Próximo Jogador Ativo
             
             // Encontrar o índice do jogador atual na lista ATIVA
             int currentPlayerIndex = activePlayers.indexOf(currentPlayerGame);
@@ -771,17 +767,8 @@ public class GameService {
 
     @Transactional
     public Game attackTerritory(Long gameId, String initiatingUsername, AttackRequestDto dto) {
-        System.out.println("\n=== INÍCIO ATAQUE ===");
-        System.out.println("GameId: " + gameId);
-        System.out.println("Username: " + initiatingUsername);
-        System.out.println("SourceTerritoryId: " + dto.getSourceTerritoryId());
-        System.out.println("TargetTerritoryId: " + dto.getTargetTerritoryId());
-        System.out.println("AttackDiceCount: " + dto.getAttackDiceCount());
-        
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
-
-        System.out.println("Game encontrado. Status: " + game.getStatus());
 
         if (!GameStatus.ATTACK.name().equals(game.getStatus())) {
             throw new InvalidGamePhaseException(
@@ -792,43 +779,24 @@ public class GameService {
         }
 
         PlayerGame currentPlayerGame = game.getTurnPlayer();
-        System.out.println("TurnPlayer ID: " + currentPlayerGame.getId());
-        System.out.println("TurnPlayer Username: " + currentPlayerGame.getPlayer().getUsername());
         
         if (!currentPlayerGame.getPlayer().getUsername().equals(initiatingUsername)) {
             throw new RuntimeException("Não é o seu turno para atacar.");
         }
 
-        // ✅ CRITICAL FIX: Busca GameTerritory pelo Territory.id (não pelo GameTerritory.id)
-        // O frontend envia Territory.id, então precisamos buscar o GameTerritory correspondente no Game
         GameTerritory sourceTerritory = gameTerritoryRepository.findByGame_IdAndTerritory_Id(gameId, dto.getSourceTerritoryId())
                 .orElseThrow(() -> new RuntimeException("Território atacante não encontrado."));
         GameTerritory targetTerritory = gameTerritoryRepository.findByGame_IdAndTerritory_Id(gameId, dto.getTargetTerritoryId())
                 .orElseThrow(() -> new RuntimeException("Território defensor não encontrado."));
 
-        System.out.println("\n--- VALIDAÇÃO DE POSSE ---");
-        System.out.println("Source Territory:");
-        System.out.println("  - GameTerritory ID: " + sourceTerritory.getId());
-        System.out.println("  - Territory Name: " + sourceTerritory.getTerritory().getName());
-        System.out.println("  - Owner (PlayerGame) ID: " + sourceTerritory.getOwner().getId());
-        System.out.println("  - Owner Username: " + sourceTerritory.getOwner().getPlayer().getUsername());
-        System.out.println("CurrentPlayerGame ID: " + currentPlayerGame.getId());
-        System.out.println("IDs iguais? " + sourceTerritory.getOwner().getId().equals(currentPlayerGame.getId()));
-        
-        // Validação de Posse, Vizinhança e Tropas
-        // Compara IDs ao invés de objetos para evitar problemas com cache do EntityManager
         if (!sourceTerritory.getOwner().getId().equals(currentPlayerGame.getId())) {
-            System.out.println("❌ ERRO: Owner ID (" + sourceTerritory.getOwner().getId() + ") != CurrentPlayer ID (" + currentPlayerGame.getId() + ")");
             throw new RuntimeException("O território atacante não pertence a você.");
         }
-        
-        System.out.println("✅ Validação de posse OK");
         
         if (targetTerritory.getOwner().getId().equals(currentPlayerGame.getId())) {
             throw new RuntimeException("Você não pode atacar seu próprio território.");
         }
         
-        // Checa se existe um registro de fronteira entre os dois territórios mestres.
         boolean isNeighbor = territoryBorderRepository.findByTerritoryIds(
             sourceTerritory.getTerritory().getId(), 
             targetTerritory.getTerritory().getId()
@@ -838,134 +806,91 @@ public class GameService {
             throw new RuntimeException("O território " + targetTerritory.getTerritory().getName() + " não é vizinho do território atacante.");
         }
 
-        // Validação de Tropas do Atacante e Dados
-        // Para ataque, consideramos apenas tropas estáticas (que não se moveram)
         int armiesAvailable = sourceTerritory.getStaticArmies();
+        int movedInArmies = sourceTerritory.getMovedInArmies();
         
-        // Validação 1: O território atacante deve ter pelo menos 2 tropas (1 para atacar, 1 para ficar)
-        if (armiesAvailable < 2) {
-            throw new RuntimeException("Você precisa de pelo menos 2 exércitos no território atacante para realizar um ataque.");
+        // Para atacar, precisa de pelo menos 1 tropa estática disponível
+        // As movedInArmies não podem atacar, mas podem "segurar" o território
+        if (armiesAvailable < 1) {
+            throw new RuntimeException("Você precisa de pelo menos 1 exército estático para realizar um ataque.");
         }
         
-        // Validação 2: O número de dados deve estar entre 1 e 3
+        // Se tem apenas 1 tropa estática, só pode atacar se tiver movedInArmies para segurar o território
+        if (armiesAvailable == 1 && movedInArmies == 0) {
+            throw new RuntimeException("Você precisa de pelo menos 2 exércitos no território atacante para realizar um ataque. (Sem tropas movidas para segurar o território)");
+        }
+        
         if (dto.getAttackDiceCount() < 1 || dto.getAttackDiceCount() > 3) {
             throw new RuntimeException("O número de dados de ataque deve estar entre 1 e 3.");
         }
         
-        // Validação 3: O número de dados não pode ser maior ou igual ao número de tropas disponíveis
-        // (pois pelo menos 1 tropa deve permanecer no território)
-        int maxAttackDice = armiesAvailable - 1;
+        // Máximo de dados = tropas estáticas disponíveis (considerando que movedInArmies seguram o território)
+        int maxAttackDice;
+        if (movedInArmies > 0) {
+            // Tem tropas movidas para segurar: pode usar TODAS as estáticas
+            maxAttackDice = armiesAvailable;
+        } else {
+            // Não tem tropas movidas: precisa deixar pelo menos 1 estática
+            maxAttackDice = armiesAvailable - 1;
+        }
+        
         if (dto.getAttackDiceCount() > maxAttackDice) {
             throw new RuntimeException("Você deve deixar pelo menos um exército no território atacante. Máximo de dados de ataque permitido: " + maxAttackDice);
         }
 
-        // Determinar Dados de Defesa
         PlayerGame defenderPlayerGame = targetTerritory.getOwner();
-        // Para defesa, todas as tropas (estáticas e movidas) podem defender
-        int defenseArmies = targetTerritory.getStaticArmies() + targetTerritory.getMovedInArmies();
+        int defenseArmies = targetTerritory.getStaticArmies();
+        int defenseDiceCount = Math.min(3, defenseArmies);
         
-        // Defensor usa 2 dados se tiver 2 ou mais exércitos, senão usa 1.
-        int defenseDiceCount = (defenseArmies >= 2) ? 2 : 1;
-        
-        // Rolagem de Dados e Resolução
-        // ... (Simulação e Resolução de Combate)
         List<Integer> attackRolls = simulateDiceRolls(dto.getAttackDiceCount());
         List<Integer> defenseRolls = simulateDiceRolls(defenseDiceCount);
         
-        int[] combatResult = resolveCombat(attackRolls, defenseRolls); // [perdas_atacante, perdas_defensor]
+        int[] combatResult = resolveCombat(attackRolls, defenseRolls);
         int attackerLosses = combatResult[0];
         int defenderLosses = combatResult[1];
 
-        // Aplicação das Perdas
-        // O atacante sempre perde tropas estáticas
         sourceTerritory.setStaticArmies(sourceTerritory.getStaticArmies() - attackerLosses);
         
-        // O defensor perde primeiro as tropas estáticas, depois as movidas
-        int remainingDefenderLosses = defenderLosses;
         int currentStaticArmies = targetTerritory.getStaticArmies();
         
-        if (currentStaticArmies >= remainingDefenderLosses) {
-            targetTerritory.setStaticArmies(currentStaticArmies - remainingDefenderLosses);
+        if (currentStaticArmies > defenderLosses) {
+            targetTerritory.setStaticArmies(currentStaticArmies - defenderLosses);
         } else {
-            remainingDefenderLosses -= currentStaticArmies;
             targetTerritory.setStaticArmies(0);
-            targetTerritory.setMovedInArmies(targetTerritory.getMovedInArmies() - remainingDefenderLosses);
+            targetTerritory.setMovedInArmies(0);
         }
-
-        // Log (manter log para debug)
-        System.out.printf("Combate: %s vs %s. Atacante (%s) perdeu %d. Defensor (%s) perdeu %d.\n",
-                sourceTerritory.getTerritory().getName(), 
-                targetTerritory.getTerritory().getName(),
-                String.join(",", attackRolls.stream().map(Object::toString).toList()),
-                attackerLosses,
-                String.join(",", defenseRolls.stream().map(Object::toString).toList()),
-                defenderLosses);
         
-        // Lógica de Conquista
-        if ((targetTerritory.getStaticArmies() + targetTerritory.getMovedInArmies()) <= 0) {
-
-            // ✅ LÓGICA CORRIGIDA: Mover apenas as tropas que participaram e sobreviveram ao último round
-            // Regras aplicadas:
-            // - Tropas que participaram do ataque = dto.getAttackDiceCount()
-            // - Tropas perdidas do atacante neste round = attackerLosses
-            // - Tropas sobreviventes desse round = dto.getAttackDiceCount() - attackerLosses
-            // - Deve mover pelo menos 1 tropa (regra da implementação)
-            // - Nunca deixar o território atacante vazio (deve permanecer >= 1)
-
-            int sourceStaticAfterLosses = sourceTerritory.getStaticArmies(); // já subtraído attackerLosses acima
-
-            // Tropas que participaram do ataque
+        if ((targetTerritory.getStaticArmies()) <= 0) {
+            int sourceStaticAfterLosses = sourceTerritory.getStaticArmies();
             int attackedArmies = dto.getAttackDiceCount();
-            // Tropas do atacante perdidas nesse confronto
             int attackerLossesInRound = attackerLosses;
 
             int survivingAttackers = attackedArmies - attackerLossesInRound;
-            // Deve mover pelo menos 1 (regra da implementação)
             int troopsToMove = Math.max(1, survivingAttackers);
-
-            // Máximo que pode mover sem deixar o território vazio
             int maxMoveable = Math.max(0, sourceStaticAfterLosses - 1);
 
             if (maxMoveable < 1) {
-                // Não há tropas suficientes para mover mantendo 1 no território
                 throw new RuntimeException("Erro: Não é possível mover tropas para ocupar sem deixar o território atacante vazio.");
             }
 
-            // Ajusta para o máximo permitido caso necessário
             if (troopsToMove > maxMoveable) {
                 troopsToMove = maxMoveable;
             }
 
-            System.out.println("🎯 CONQUISTA! Movendo " + troopsToMove + " tropas para " + targetTerritory.getTerritory().getName());
-            System.out.println("   - Tropas no território atacante após perdas: " + sourceStaticAfterLosses);
-            System.out.println("   - Tropas que participaram do ataque: " + attackedArmies);
-            System.out.println("   - Tropas perdidas pelo atacante neste round: " + attackerLossesInRound);
-            System.out.println("   - Tropas a mover: " + troopsToMove);
-            System.out.println("   - Tropas que ficam no atacante: " + (sourceStaticAfterLosses - troopsToMove));
-
-            // Transferência de Posse e Tropas
             targetTerritory.setOwner(currentPlayerGame);
             targetTerritory.setStaticArmies(0);
             targetTerritory.setMovedInArmies(troopsToMove);
-
-            // Reduz as tropas estáticas do território atacante, deixando pelo menos 1
             sourceTerritory.setStaticArmies(sourceStaticAfterLosses - troopsToMove);
 
-            // Setar a flag de carta (Recompensa)
             currentPlayerGame.setConqueredTerritoryThisTurn(true);
 
-            // Checar Fim de Jogo (Isto checa eliminação e, se houver, chama o winConditionService)
             checkGameOver(game, defenderPlayerGame);
 
-            // 2. Checagem de Objetivo Pós-Conquista (NOVA LÓGICA)
             if (!GameStatus.FINISHED.name().equals(game.getStatus())) {
                 winConditionService.checkObjectiveCompletion(game, currentPlayerGame);
             }
-
-            System.out.println("✅ Território conquistado com sucesso!");
         }
         
-        // Salvar mudanças (sempre salva, conquista ou não)
         gameTerritoryRepository.save(targetTerritory);
         gameTerritoryRepository.save(sourceTerritory);
         playerGameRepository.save(currentPlayerGame);
@@ -975,41 +900,24 @@ public class GameService {
 
     @Transactional
     public void checkGameOver(Game game, PlayerGame defeatedPlayer) {
-        // O atacante é o jogador que está na vez (TurnPlayer)
         PlayerGame attackerPlayer = game.getTurnPlayer(); 
         
-        // Verifica se o jogador foi eliminado
-        // Assumimos que o countByOwner está corretamente definido no GameTerritoryRepository.
         long territoriesOwned = gameTerritoryRepository.countByOwner(defeatedPlayer);
 
         if (territoriesOwned == 0) {
-            
-            // --- Lógica de Transferência de Cartas ---
-            
             List<PlayerCard> defeatedCards = playerCardRepository.findByPlayerGame(defeatedPlayer);
             
-            // Atualiza a posse de todas as cartas no loop
             for (PlayerCard card : defeatedCards) {
                 card.setPlayerGame(attackerPlayer);
             }
 
-            // Persiste todas as mudanças de posse de uma só vez
             if (!defeatedCards.isEmpty()) {
                 playerCardRepository.saveAll(defeatedCards); 
-                System.out.println(String.format("Transferidas %d cartas de %s para %s.", defeatedCards.size(), defeatedPlayer.getUsername(), attackerPlayer.getUsername()));
             }
 
-            // --- Marcação de Eliminação ---
-            
-            // Marcar o jogador como 'Eliminado'
             defeatedPlayer.setStillInGame(false); 
             playerGameRepository.save(defeatedPlayer);
             
-            System.out.println("Jogador " + defeatedPlayer.getUsername() + " foi eliminado.");
-            
-            // --- Checagem da Condição de Vitória ---
-            
-            // Chamar o serviço de verificação de vitória
             winConditionService.checkWinConditions(game, attackerPlayer);
         }
     }
@@ -1017,19 +925,12 @@ public class GameService {
     @EventListener
     @Transactional
     public void endGameListener(GameOverEvent event) {
-        // Extrair os dados do Evento
         Game game = event.getGame();
         PlayerGame winner = event.getWinner();
         
-        // Atualizar o estado do jogo e persistir
         game.setStatus(GameStatus.FINISHED.name()); 
         game.setWinner(winner); 
         gameRepository.save(game);
-        
-        System.out.println("Jogo " + game.getId() + " finalizado. Vencedor: " + winner.getUsername());
-        
-        // Nota: A notificação WebSocket é enviada pelo GameController via /topic/game/{gameId}/state
-        // com o GameStateResponseDto completo que já inclui o winner e status FINISHED
     }
 
     // AUXILIARES ==================================
@@ -1045,9 +946,9 @@ public class GameService {
             gt.setGame(game);
             gt.setTerritory(territory);
             gt.setOwner(owner);
-            gt.setStaticArmies(1);  // Tropas iniciais são estáticas
-            gt.setMovedInArmies(0); // Nenhuma tropa movida inicialmente
-            gt.setUnallocatedArmies(0); // Nenhuma tropa não alocada
+            gt.setStaticArmies(1);
+            gt.setMovedInArmies(0);
+            gt.setUnallocatedArmies(0);
             
             gameTerritories.add(gt);
             
@@ -1138,18 +1039,14 @@ public class GameService {
     }
 
     private void drawCard(PlayerGame playerGame) {
-        // Encontrar a próxima carta disponível no baralho.
         Card cardToDraw = cardRepository.findRandomUnownedCard()
             .orElseThrow(() -> new RuntimeException("Baralho de cartas vazio. Não foi possível comprar carta."));
 
-        // Criar a posse da carta
         PlayerCard playerCard = new PlayerCard();
         playerCard.setPlayerGame(playerGame);
         playerCard.setCard(cardToDraw);
 
         playerCardRepository.save(playerCard);
-
-        System.out.println("Jogador " + playerGame.getPlayer().getUsername() + " comprou a carta: " + cardToDraw.getType());
     }
 
     private List<Integer> simulateDiceRolls(int count) {
