@@ -17,13 +17,13 @@ import com.war.game.war_backend.services.TroopMovementService;
 @RequestMapping("/api/troop-movements")
 public class TroopMovementController {
 
-    @Autowired
-    private TroopMovementService troopMovementService;
+  @Autowired private TroopMovementService troopMovementService;
 
-    @PostMapping
-    public ResponseEntity<TroopMovementResponse> createTroopMovement(
-            @AuthenticationPrincipal PlayerDetails playerDetails,
-            @RequestBody TroopMovementRequest request) {
-        return ResponseEntity.ok(troopMovementService.createTroopMovement(playerDetails.getId(), request));
-    }
+  @PostMapping
+  public ResponseEntity<TroopMovementResponse> createTroopMovement(
+      @AuthenticationPrincipal PlayerDetails playerDetails,
+      @RequestBody TroopMovementRequest request) {
+    return ResponseEntity.ok(
+        troopMovementService.createTroopMovement(playerDetails.getId(), request));
+  }
 }

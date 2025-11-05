@@ -11,9 +11,10 @@ import com.war.game.war_backend.model.Territory;
 
 @Repository
 public interface TerritoryRepository extends JpaRepository<Territory, Long> {
-    Optional<Territory> findByName(String name);
+  Optional<Territory> findByName(String name);
 
-    long countByContinent(String continent);
-    @NonNull List<Territory> findAll();
+  long countByContinent(String continent);
 
+  @NonNull
+  List<Territory> findAll();
 }

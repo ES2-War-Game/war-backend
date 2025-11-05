@@ -1,0 +1,9 @@
+# Spotless cache
+.spotless/
+*.spotless
+
+# Mas mantém as configurações
+!.spotless/spotless.license.java
+!.spotless/spotless.importorder
+!.spotless/eclipse-formatter.xml
+!.spotless/README.md

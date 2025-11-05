@@ -4,9 +4,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 /**
- * Test-friendly JwtTokenUtil used only in tests (placed under src/test so it overrides
- * the production implementation on the test classpath). It produces simple tokens
- * of the form "test-token-{username}" and validates/extracts usernames accordingly.
+ * Test-friendly JwtTokenUtil used only in tests (placed under src/test so it overrides the
+ * production implementation on the test classpath). It produces simple tokens of the form
+ * "test-token-{username}" and validates/extracts usernames accordingly.
  */
 @Component
 public class JwtTokenUtil {

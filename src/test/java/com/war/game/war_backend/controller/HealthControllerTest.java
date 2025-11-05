@@ -20,16 +20,16 @@ import com.war.game.war_backend.config.BaseTestConfiguration;
 @Import(BaseTestConfiguration.class)
 class HealthControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+  @Autowired private MockMvc mockMvc;
 
-    @Test
-    void healthCheckShouldReturnOkWhenDatabaseIsUp() throws Exception {
-        mockMvc.perform(get("/api/v1/health"))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$.status").value("ok"))
-               .andExpect(jsonPath("$.uptime").isNumber())
-               .andExpect(jsonPath("$.timestamp").isString())
-               .andExpect(jsonPath("$.duration").isNumber());
-    }
+  @Test
+  void healthCheckShouldReturnOkWhenDatabaseIsUp() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/health"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("ok"))
+        .andExpect(jsonPath("$.uptime").isNumber())
+        .andExpect(jsonPath("$.timestamp").isString())
+        .andExpect(jsonPath("$.duration").isNumber());
+  }
 }

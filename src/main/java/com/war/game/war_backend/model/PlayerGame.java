@@ -11,14 +11,15 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import lombok.NoArgsConstructor;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
-import lombok.EqualsAndHashCode;
 
 @Entity
 @Table(name = "player_game")
@@ -77,7 +78,7 @@ public class PlayerGame {
   private Boolean stillInGame = true;
 
   @Column(name = "username", nullable = false, length = 50)
-    private String username;
+  private String username;
 
   @Column(name = "image_url", nullable = true, length = 255)
   private String imageUrl;

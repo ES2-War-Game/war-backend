@@ -42,14 +42,11 @@ class PlayerControllerWebTest {
   private MockMvc mockMvc;
   private final ObjectMapper objectMapper = new ObjectMapper();
 
-  @Mock
-  private PlayerService playerService;
+  @Mock private PlayerService playerService;
 
-  @Mock
-  private AuthenticationManager authenticationManager;
+  @Mock private AuthenticationManager authenticationManager;
 
-  @Mock
-  private JwtTokenUtil jwtTokenUtil;
+  @Mock private JwtTokenUtil jwtTokenUtil;
 
   private static final String REGISTER_ENDPOINT = "/api/v1/players/register";
   private static final String LOGIN_ENDPOINT = "/api/v1/players/login";
@@ -59,14 +56,13 @@ class PlayerControllerWebTest {
   void setup() {
     MockitoAnnotations.openMocks(this);
 
-    PlayerController controller = new PlayerController(playerService, authentication_manager(), jwtTokenUtil);
+    PlayerController controller =
+        new PlayerController(playerService, authentication_manager(), jwtTokenUtil);
 
     LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
     validator.afterPropertiesSet();
 
-    this.mockMvc = MockMvcBuilders.standaloneSetup(controller)
-        .setValidator(validator)
-        .build();
+    this.mockMvc = MockMvcBuilders.standaloneSetup(controller).setValidator(validator).build();
   }
 
   private AuthenticationManager authentication_manager() {
@@ -84,9 +80,11 @@ class PlayerControllerWebTest {
 
     when(playerService.registerNewPlayer(any(PlayerRegistrationDto.class))).thenReturn(savedPlayer);
 
-    mockMvc.perform(post(REGISTER_ENDPOINT)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(dto)))
+    mockMvc
+        .perform(
+            post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto)))
         .andExpect(status().isCreated())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(jsonPath("$.username").value("usuarioValido"))
@@ -97,9 +95,11 @@ class PlayerControllerWebTest {
   void postRegister_returns400_whenInvalidPayload() throws Exception {
     PlayerRegistrationDto invalidDto = new PlayerRegistrationDto("ab", "not-an-email", "123");
 
-    mockMvc.perform(post(REGISTER_ENDPOINT)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(invalidDto)))
+    mockMvc
+        .perform(
+            post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(invalidDto)))
         .andExpect(status().isBadRequest());
   }
 
@@ -110,9 +110,11 @@ class PlayerControllerWebTest {
     when(playerService.registerNewPlayer(any(PlayerRegistrationDto.class)))
         .thenThrow(new IllegalStateException("exists"));
 
-    mockMvc.perform(post(REGISTER_ENDPOINT)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(dto)))
+    mockMvc
+        .perform(
+            post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto)))
         .andExpect(status().isConflict());
   }
 
@@ -130,7 +132,8 @@ class PlayerControllerWebTest {
 
     when(playerService.getAllPlayers()).thenReturn(Arrays.asList(player1, player2));
 
-    mockMvc.perform(get(PLAYERS_ENDPOINT))
+    mockMvc
+        .perform(get(PLAYERS_ENDPOINT))
         .andExpect(status().isOk())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(jsonPath("$").isArray())
@@ -149,37 +152,38 @@ class PlayerControllerWebTest {
 
     when(playerService.getPlayerById(1L)).thenReturn(player);
 
-    mockMvc.perform(get(PLAYERS_ENDPOINT + "/1"))
+    mockMvc
+        .perform(get(PLAYERS_ENDPOINT + "/1"))
         .andExpect(status().isOk())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(jsonPath("$.username").value("usuario1"))
         .andExpect(jsonPath("$.email").value("u1@ex.com"));
   }
 
-    @Test
+  @Test
   void login_returns200_andToken_whenCredentialsValid() throws Exception {
     LoginRequestDto loginDto = new LoginRequestDto("usuario", "senha123");
     // Mock do UserDetails
-    User userDetails = new User(
-        "usuario", "senha123", Collections.emptyList());
+    User userDetails = new User("usuario", "senha123", Collections.emptyList());
 
     // Mock do Authentication que retorna o UserDetails
-    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-        userDetails, null, Collections.emptyList());
+    UsernamePasswordAuthenticationToken authToken =
+        new UsernamePasswordAuthenticationToken(userDetails, null, Collections.emptyList());
 
-    when(authenticationManager.authenticate(any()))
-        .thenReturn(authToken);
+    when(authenticationManager.authenticate(any())).thenReturn(authToken);
     when(jwtTokenUtil.generateToken(any())).thenReturn("jwt-token");
 
-  Player savedPlayer = new Player();
-  savedPlayer.setId(42L);
-  savedPlayer.setUsername("usuario");
-  savedPlayer.setEmail("usuario@example.com");
-  when(playerService.getPlayerByUsername("usuario")).thenReturn(savedPlayer);
+    Player savedPlayer = new Player();
+    savedPlayer.setId(42L);
+    savedPlayer.setUsername("usuario");
+    savedPlayer.setEmail("usuario@example.com");
+    when(playerService.getPlayerByUsername("usuario")).thenReturn(savedPlayer);
 
-    mockMvc.perform(post(LOGIN_ENDPOINT)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(loginDto)))
+    mockMvc
+        .perform(
+            post(LOGIN_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(loginDto)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.token").exists())
         .andExpect(jsonPath("$.token").value("jwt-token"));
@@ -191,9 +195,11 @@ class PlayerControllerWebTest {
     when(authenticationManager.authenticate(any()))
         .thenThrow(new BadCredentialsException("Invalid credentials"));
 
-    mockMvc.perform(post(LOGIN_ENDPOINT)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(loginDto)))
+    mockMvc
+        .perform(
+            post(LOGIN_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(loginDto)))
         .andExpect(status().isUnauthorized());
   }
 
@@ -201,16 +207,20 @@ class PlayerControllerWebTest {
   void login_returns400_whenRequestInvalid() throws Exception {
     LoginRequestDto loginDto = new LoginRequestDto("", "");
 
-    mockMvc.perform(post(LOGIN_ENDPOINT)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(loginDto)))
+    mockMvc
+        .perform(
+            post(LOGIN_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(loginDto)))
         .andExpect(status().isBadRequest());
-  }  @Test
-  void getPlayer_returns404_whenPlayerNotFound() throws Exception {
-    when(playerService.getPlayerById(1L)).thenThrow(new IllegalArgumentException("Jogador não encontrado"));
+  }
 
-    mockMvc.perform(get(PLAYERS_ENDPOINT + "/1"))
-        .andExpect(status().isNotFound());
+  @Test
+  void getPlayer_returns404_whenPlayerNotFound() throws Exception {
+    when(playerService.getPlayerById(1L))
+        .thenThrow(new IllegalArgumentException("Jogador não encontrado"));
+
+    mockMvc.perform(get(PLAYERS_ENDPOINT + "/1")).andExpect(status().isNotFound());
   }
 
   @Test
@@ -227,9 +237,11 @@ class PlayerControllerWebTest {
 
     when(playerService.updatePlayer(eq(1L), any(PlayerUpdateDto.class))).thenReturn(updatedPlayer);
 
-    mockMvc.perform(patch(PLAYERS_ENDPOINT + "/1")
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(updateDto)))
+    mockMvc
+        .perform(
+            patch(PLAYERS_ENDPOINT + "/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateDto)))
         .andExpect(status().isOk())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(jsonPath("$.email").value("novo@email.com"))
@@ -244,9 +256,11 @@ class PlayerControllerWebTest {
     when(playerService.updatePlayer(eq(1L), any(PlayerUpdateDto.class)))
         .thenThrow(new IllegalArgumentException("Jogador não encontrado"));
 
-    mockMvc.perform(patch(PLAYERS_ENDPOINT + "/1")
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(updateDto)))
+    mockMvc
+        .perform(
+            patch(PLAYERS_ENDPOINT + "/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateDto)))
         .andExpect(status().isNotFound());
   }
 }

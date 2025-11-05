@@ -4,8 +4,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -13,6 +11,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -52,10 +53,8 @@ public class Territory {
   @JsonIgnore
   public Set<TerritoryBorder> getAllBorders() {
     Set<TerritoryBorder> all = new HashSet<>();
-    if (bordersA != null)
-      all.addAll(bordersA);
-    if (bordersB != null)
-      all.addAll(bordersB);
+    if (bordersA != null) all.addAll(bordersA);
+    if (bordersB != null) all.addAll(bordersB);
     return all;
   }
 

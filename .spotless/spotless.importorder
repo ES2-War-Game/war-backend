@@ -1,0 +1,24 @@
+# Spotless Configuration File
+# Este arquivo define a ordem dos imports para o projeto
+
+# Imports do Java padrão
+java
+javax
+
+# Jakarta (sucessor do javax)
+jakarta
+
+# Spring Framework
+org.springframework
+
+# Outras bibliotecas organizacionais
+org
+
+# Bibliotecas comerciais
+com
+
+# Imports estáticos (ficam no final)
+\#
+
+# Imports não especificados (catch-all)
+

@@ -1,8 +1,10 @@
 package com.war.game.war_backend.repository;
 
-import com.war.game.war_backend.model.Player;
-import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.war.game.war_backend.model.Player;
 
 public interface PlayerRepository extends JpaRepository<Player, Long> {
 

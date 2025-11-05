@@ -4,13 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import com.war.game.war_backend.controller.dto.request.PlayerRegistrationDto;
-import com.war.game.war_backend.controller.dto.request.PlayerUpdateDto;
-import com.war.game.war_backend.controller.dto.response.PlayerDto;
-import com.war.game.war_backend.model.Player;
-import com.war.game.war_backend.security.jwt.JwtTokenUtil;
 import java.util.Arrays;
 import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -20,20 +16,25 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 
+import com.war.game.war_backend.controller.dto.request.PlayerRegistrationDto;
+import com.war.game.war_backend.controller.dto.request.PlayerUpdateDto;
+import com.war.game.war_backend.controller.dto.response.PlayerDto;
+import com.war.game.war_backend.model.Player;
+import com.war.game.war_backend.security.jwt.JwtTokenUtil;
 import com.war.game.war_backend.services.PlayerService;
 
 class PlayerControllerUnitTest {
 
-  @Mock
-  private PlayerService playerService;
+  @Mock private PlayerService playerService;
 
-  @InjectMocks
-  private PlayerController controller;
+  @InjectMocks private PlayerController controller;
 
   @BeforeEach
   void setup() {
     MockitoAnnotations.openMocks(this);
-    controller = new PlayerController(playerService, mock(AuthenticationManager.class), mock(JwtTokenUtil.class));
+    controller =
+        new PlayerController(
+            playerService, mock(AuthenticationManager.class), mock(JwtTokenUtil.class));
   }
 
   @Test
@@ -109,7 +110,8 @@ class PlayerControllerUnitTest {
 
   @Test
   void getPlayer_returnsNotFound_whenPlayerNotExists() {
-    when(playerService.getPlayerById(1L)).thenThrow(new IllegalArgumentException("Jogador não encontrado"));
+    when(playerService.getPlayerById(1L))
+        .thenThrow(new IllegalArgumentException("Jogador não encontrado"));
 
     ResponseEntity<PlayerDto> response = controller.getPlayer(1L);
 
@@ -145,7 +147,8 @@ class PlayerControllerUnitTest {
     PlayerUpdateDto updateDto = new PlayerUpdateDto();
     updateDto.setEmail("novo@email.com");
 
-    when(playerService.updatePlayer(1L, updateDto)).thenThrow(new IllegalArgumentException("Jogador não encontrado"));
+    when(playerService.updatePlayer(1L, updateDto))
+        .thenThrow(new IllegalArgumentException("Jogador não encontrado"));
 
     ResponseEntity<PlayerDto> response = controller.updatePlayer(1L, updateDto);
 

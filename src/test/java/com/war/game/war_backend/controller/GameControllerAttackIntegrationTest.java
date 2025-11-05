@@ -42,35 +42,25 @@ import com.war.game.war_backend.security.jwt.JwtTokenUtil;
 @Transactional
 class GameControllerAttackIntegrationTest {
 
-  @Autowired
-  private MockMvc mockMvc;
+  @Autowired private MockMvc mockMvc;
 
-  @Autowired
-  private GameRepository gameRepository;
+  @Autowired private GameRepository gameRepository;
 
-  @Autowired
-  private PlayerRepository playerRepository;
+  @Autowired private PlayerRepository playerRepository;
 
-  @Autowired
-  private TerritoryRepository territoryRepository;
+  @Autowired private TerritoryRepository territoryRepository;
 
-  @Autowired
-  private PlayerGameRepository playerGameRepository;
+  @Autowired private PlayerGameRepository playerGameRepository;
 
-  @Autowired
-  private GameTerritoryRepository gameTerritoryRepository;
+  @Autowired private GameTerritoryRepository gameTerritoryRepository;
 
-  @Autowired
-  private TerritoryBorderRepository territoryBorderRepository;
+  @Autowired private TerritoryBorderRepository territoryBorderRepository;
 
-  @Autowired
-  private JwtTokenUtil jwtTokenUtil;
+  @Autowired private JwtTokenUtil jwtTokenUtil;
 
-  @Autowired
-  private PasswordEncoder passwordEncoder;
+  @Autowired private PasswordEncoder passwordEncoder;
 
-  @Autowired
-  private ObjectMapper objectMapper;
+  @Autowired private ObjectMapper objectMapper;
 
   private Player attacker;
   private Player defender;
@@ -101,22 +91,27 @@ class GameControllerAttackIntegrationTest {
     defender = playerRepository.save(defender);
 
     // Buscar territórios existentes criados pelo TerritoryInitializer
-    sourceTerritory = territoryRepository.findByName("BRASIL")
-        .orElseThrow(() -> new RuntimeException("Território BRASIL não foi inicializado"));
+    sourceTerritory =
+        territoryRepository
+            .findByName("BRASIL")
+            .orElseThrow(() -> new RuntimeException("Território BRASIL não foi inicializado"));
 
-    targetTerritory = territoryRepository.findByName("ARGENTINA")
-        .orElseThrow(() -> new RuntimeException("Território ARGENTINA não foi inicializado"));
+    targetTerritory =
+        territoryRepository
+            .findByName("ARGENTINA")
+            .orElseThrow(() -> new RuntimeException("Território ARGENTINA não foi inicializado"));
 
     // Verificar se existe fronteira entre os territórios
-    territoryBorderRepository.findByTerritoryIds(
-        sourceTerritory.getId(),
-        targetTerritory.getId()).orElseGet(() -> {
-          // Se não existir, criar uma fronteira para o teste
-          var newBorder = new TerritoryBorder();
-          newBorder.setTerritoryA(sourceTerritory);
-          newBorder.setTerritoryB(targetTerritory);
-          return territoryBorderRepository.save(newBorder);
-        });
+    territoryBorderRepository
+        .findByTerritoryIds(sourceTerritory.getId(), targetTerritory.getId())
+        .orElseGet(
+            () -> {
+              // Se não existir, criar uma fronteira para o teste
+              var newBorder = new TerritoryBorder();
+              newBorder.setTerritoryA(sourceTerritory);
+              newBorder.setTerritoryB(targetTerritory);
+              return territoryBorderRepository.save(newBorder);
+            });
 
     // Criar jogo de teste
     testGame = new Game();
@@ -173,11 +168,11 @@ class GameControllerAttackIntegrationTest {
     targetGameTerritory = gameTerritoryRepository.save(targetGameTerritory);
 
     // Gerar token JWT para o atacante
-    org.springframework.security.core.userdetails.UserDetails attackerUserDetails = org.springframework.security.core.userdetails.User
-        .withUsername(attacker.getUsername())
-        .password(attacker.getPassword())
-        .authorities("USER")
-        .build();
+    org.springframework.security.core.userdetails.UserDetails attackerUserDetails =
+        org.springframework.security.core.userdetails.User.withUsername(attacker.getUsername())
+            .password(attacker.getPassword())
+            .authorities("USER")
+            .build();
     attackerAuthToken = "Bearer " + jwtTokenUtil.generateToken(attackerUserDetails);
   }
 
@@ -191,10 +186,12 @@ class GameControllerAttackIntegrationTest {
     attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
-        .header("Authorization", attackerAuthToken)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(attackRequest)))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/attack", testGame.getId())
+                .header("Authorization", attackerAuthToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(attackRequest)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(testGame.getId()))
         .andExpect(jsonPath("$.status").value("ATTACK"));
@@ -210,9 +207,11 @@ class GameControllerAttackIntegrationTest {
     attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(attackRequest)))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/attack", testGame.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(attackRequest)))
         .andExpect(status().isUnauthorized()); // 401 quando não há autenticação
   }
 
@@ -229,10 +228,12 @@ class GameControllerAttackIntegrationTest {
     attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
-        .header("Authorization", attackerAuthToken)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(attackRequest)))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/attack", testGame.getId())
+                .header("Authorization", attackerAuthToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(attackRequest)))
         .andExpect(status().isBadRequest());
   }
 
@@ -249,10 +250,12 @@ class GameControllerAttackIntegrationTest {
     attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
-        .header("Authorization", attackerAuthToken)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(attackRequest)))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/attack", testGame.getId())
+                .header("Authorization", attackerAuthToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(attackRequest)))
         .andExpect(status().isBadRequest());
   }
 
@@ -269,10 +272,12 @@ class GameControllerAttackIntegrationTest {
     attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
-        .header("Authorization", attackerAuthToken)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(attackRequest)))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/attack", testGame.getId())
+                .header("Authorization", attackerAuthToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(attackRequest)))
         .andExpect(status().isBadRequest());
   }
 
@@ -290,10 +295,12 @@ class GameControllerAttackIntegrationTest {
     attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
-        .header("Authorization", attackerAuthToken)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(attackRequest)))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/attack", testGame.getId())
+                .header("Authorization", attackerAuthToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(attackRequest)))
         .andExpect(status().isBadRequest());
   }
 
@@ -307,10 +314,12 @@ class GameControllerAttackIntegrationTest {
     attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/attack", 999L)
-        .header("Authorization", attackerAuthToken)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(attackRequest)))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/attack", 999L)
+                .header("Authorization", attackerAuthToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(attackRequest)))
         .andExpect(status().isBadRequest());
   }
 
@@ -324,10 +333,12 @@ class GameControllerAttackIntegrationTest {
     attackRequest.setTroopsToMoveAfterConquest(3);
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/attack", testGame.getId())
-        .header("Authorization", attackerAuthToken)
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(attackRequest)))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/attack", testGame.getId())
+                .header("Authorization", attackerAuthToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(attackRequest)))
         .andExpect(status().isBadRequest());
   }
 }

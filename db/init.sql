@@ -113,18 +113,3 @@ CREATE TABLE game_territory (
     CONSTRAINT fk_territory FOREIGN KEY (territory_id) REFERENCES territory(pk_id),
     CONSTRAINT fk_player_game FOREIGN KEY (player_game_id) REFERENCES player_game(pk_id)
 );
-
--- Tabela para armazenar histórico de movimentação de tropas
-CREATE TABLE troop_movement (
-    pk_id BIGSERIAL PRIMARY KEY,
-    source_territory_id BIGINT NOT NULL,
-    target_territory_id BIGINT NOT NULL,
-    number_of_troops INTEGER NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    game_id BIGINT NOT NULL,
-    player_game_id BIGINT NOT NULL,
-    CONSTRAINT fk_source_territory FOREIGN KEY (source_territory_id) REFERENCES game_territory(pk_id),
-    CONSTRAINT fk_target_territory FOREIGN KEY (target_territory_id) REFERENCES game_territory(pk_id),
-    CONSTRAINT fk_game_troop FOREIGN KEY (game_id) REFERENCES game(pk_id),
-    CONSTRAINT fk_player_game_troop FOREIGN KEY (player_game_id) REFERENCES player_game(pk_id)
-);

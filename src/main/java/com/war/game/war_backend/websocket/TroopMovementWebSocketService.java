@@ -8,11 +8,10 @@ import com.war.game.war_backend.controller.dto.response.TroopMovementResponse;
 
 @Service
 public class TroopMovementWebSocketService {
-    
-    @Autowired
-    private SimpMessagingTemplate messagingTemplate;
 
-    public void notifyTroopMovementUpdate(Long gameId, TroopMovementResponse movement) {
-        messagingTemplate.convertAndSend("/topic/game/" + gameId + "/troop-movements", movement);
-    }
+  @Autowired private SimpMessagingTemplate messagingTemplate;
+
+  public void notifyTroopMovementUpdate(Long gameId, TroopMovementResponse movement) {
+    messagingTemplate.convertAndSend("/topic/game/" + gameId + "/troop-movements", movement);
+  }
 }

@@ -6,9 +6,9 @@ import lombok.Data;
 
 @Data
 public class TroopMovementResponse {
-    private Long id;
-    private Long sourceTerritory;
-    private Long targetTerritory;
-    private Integer numberOfTroops;
-    private LocalDateTime createdAt;
+  private Long id;
+  private Long sourceTerritory;
+  private Long targetTerritory;
+  private Integer numberOfTroops;
+  private LocalDateTime createdAt;
 }

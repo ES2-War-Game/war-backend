@@ -31,26 +31,23 @@ import com.war.game.war_backend.services.GameService;
 @ExtendWith(MockitoExtension.class)
 class GameControllerAllocateTroopsTest {
 
-  @Mock
-  private GameService gameService;
+  @Mock private GameService gameService;
 
-  @Mock
-  private SimpMessagingTemplate messagingTemplate;
+  @Mock private SimpMessagingTemplate messagingTemplate;
 
-  @Mock
-  private Principal principal;
+  @Mock private Principal principal;
 
-  @InjectMocks
-  private GameController gameController;
+  @InjectMocks private GameController gameController;
 
   private MockMvc mockMvc;
   private ObjectMapper objectMapper;
 
   @BeforeEach
   void setUp() {
-    mockMvc = MockMvcBuilders.standaloneSetup(gameController)
-        .setControllerAdvice() // Adiciona suporte para @ControllerAdvice
-        .build();
+    mockMvc =
+        MockMvcBuilders.standaloneSetup(gameController)
+            .setControllerAdvice() // Adiciona suporte para @ControllerAdvice
+            .build();
     objectMapper = new ObjectMapper();
   }
 
@@ -73,11 +70,13 @@ class GameControllerAllocateTroopsTest {
     when(gameService.allocateTroops(gameId, username, territoryId, count)).thenReturn(mockGame);
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
-        .param("territoryId", territoryId.toString())
-        .param("count", count.toString())
-        .principal(principal)
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", gameId)
+                .param("territoryId", territoryId.toString())
+                .param("count", count.toString())
+                .principal(principal)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(gameId))
         .andExpect(jsonPath("$.name").value("Test Game"))
@@ -86,10 +85,8 @@ class GameControllerAllocateTroopsTest {
     // Verify interactions
     verify(gameService, times(1)).allocateTroops(gameId, username, territoryId, count);
     // Verifica que um GameStateResponseDto foi enviado via WebSocket
-    verify(messagingTemplate, times(1)).convertAndSend(
-        eq("/topic/game/" + gameId + "/state"), 
-        any(GameStateResponseDto.class)
-    );
+    verify(messagingTemplate, times(1))
+        .convertAndSend(eq("/topic/game/" + gameId + "/state"), any(GameStateResponseDto.class));
   }
 
   @Test
@@ -106,11 +103,13 @@ class GameControllerAllocateTroopsTest {
         .thenThrow(new RuntimeException(errorMessage));
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
-        .param("territoryId", territoryId.toString())
-        .param("count", count.toString())
-        .principal(principal)
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", gameId)
+                .param("territoryId", territoryId.toString())
+                .param("count", count.toString())
+                .principal(principal)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest())
         .andExpect(content().string(errorMessage));
 
@@ -133,11 +132,13 @@ class GameControllerAllocateTroopsTest {
         .thenThrow(new RuntimeException(errorMessage));
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
-        .param("territoryId", territoryId.toString())
-        .param("count", count.toString())
-        .principal(principal)
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", gameId)
+                .param("territoryId", territoryId.toString())
+                .param("count", count.toString())
+                .principal(principal)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest())
         .andExpect(content().string(errorMessage));
   }
@@ -156,11 +157,13 @@ class GameControllerAllocateTroopsTest {
         .thenThrow(new RuntimeException(errorMessage));
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
-        .param("territoryId", territoryId.toString())
-        .param("count", count.toString())
-        .principal(principal)
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", gameId)
+                .param("territoryId", territoryId.toString())
+                .param("count", count.toString())
+                .principal(principal)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest())
         .andExpect(content().string(errorMessage));
   }
@@ -179,11 +182,13 @@ class GameControllerAllocateTroopsTest {
         .thenThrow(new RuntimeException(errorMessage));
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
-        .param("territoryId", territoryId.toString())
-        .param("count", count.toString())
-        .principal(principal)
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", gameId)
+                .param("territoryId", territoryId.toString())
+                .param("count", count.toString())
+                .principal(principal)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest())
         .andExpect(content().string(errorMessage));
   }
@@ -202,11 +207,13 @@ class GameControllerAllocateTroopsTest {
         .thenThrow(new RuntimeException(errorMessage));
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/allocate", gameId)
-        .param("territoryId", territoryId.toString())
-        .param("count", count.toString())
-        .principal(principal)
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", gameId)
+                .param("territoryId", territoryId.toString())
+                .param("count", count.toString())
+                .principal(principal)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest())
         .andExpect(content().string(errorMessage));
   }

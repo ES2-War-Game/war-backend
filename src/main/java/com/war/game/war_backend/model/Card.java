@@ -1,11 +1,12 @@
 package com.war.game.war_backend.model;
 
+import jakarta.persistence.*;
+
 import com.war.game.war_backend.model.enums.CardType;
 
-import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 
 @Entity
 @Table(name = "card")
@@ -26,7 +27,7 @@ public class Card {
   @ManyToOne
   @JoinColumn(name = "territory_id", referencedColumnName = "pk_id")
   private Territory territory;
-  
+
   @Transient
   public String getTerritoryName() {
     return territory != null ? territory.getName() : null;

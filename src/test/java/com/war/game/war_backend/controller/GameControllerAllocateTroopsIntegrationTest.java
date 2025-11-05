@@ -38,29 +38,21 @@ import com.war.game.war_backend.security.jwt.JwtTokenUtil;
 @Transactional
 class GameControllerAllocateTroopsIntegrationTest {
 
-  @Autowired
-  private MockMvc mockMvc;
+  @Autowired private MockMvc mockMvc;
 
-  @Autowired
-  private GameRepository gameRepository;
+  @Autowired private GameRepository gameRepository;
 
-  @Autowired
-  private PlayerRepository playerRepository;
+  @Autowired private PlayerRepository playerRepository;
 
-  @Autowired
-  private TerritoryRepository territoryRepository;
+  @Autowired private TerritoryRepository territoryRepository;
 
-  @Autowired
-  private PlayerGameRepository playerGameRepository;
+  @Autowired private PlayerGameRepository playerGameRepository;
 
-  @Autowired
-  private GameTerritoryRepository gameTerritoryRepository;
+  @Autowired private GameTerritoryRepository gameTerritoryRepository;
 
-  @Autowired
-  private JwtTokenUtil jwtTokenUtil;
+  @Autowired private JwtTokenUtil jwtTokenUtil;
 
-  @Autowired
-  private PasswordEncoder passwordEncoder;
+  @Autowired private PasswordEncoder passwordEncoder;
 
   private Player testPlayer;
   private Game testGame;
@@ -81,8 +73,10 @@ class GameControllerAllocateTroopsIntegrationTest {
     testPlayer = playerRepository.save(testPlayer);
 
     // Buscar território existente criado pelo TerritoryInitializer
-    testTerritory = territoryRepository.findByName("BRASIL")
-        .orElseThrow(() -> new RuntimeException("Território BRASIL não foi inicializado"));
+    testTerritory =
+        territoryRepository
+            .findByName("BRASIL")
+            .orElseThrow(() -> new RuntimeException("Território BRASIL não foi inicializado"));
 
     // Criar jogo de teste
     testGame = new Game();
@@ -119,11 +113,11 @@ class GameControllerAllocateTroopsIntegrationTest {
     testGameTerritory = gameTerritoryRepository.save(testGameTerritory);
 
     // Gerar token JWT
-    org.springframework.security.core.userdetails.UserDetails userDetails = org.springframework.security.core.userdetails.User
-        .withUsername(testPlayer.getUsername())
-        .password(testPlayer.getPassword())
-        .authorities("USER")
-        .build();
+    org.springframework.security.core.userdetails.UserDetails userDetails =
+        org.springframework.security.core.userdetails.User.withUsername(testPlayer.getUsername())
+            .password(testPlayer.getPassword())
+            .authorities("USER")
+            .build();
     authToken = "Bearer " + jwtTokenUtil.generateToken(userDetails);
   }
 
@@ -134,11 +128,13 @@ class GameControllerAllocateTroopsIntegrationTest {
     Integer count = 3;
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/allocate", testGame.getId())
-        .param("territoryId", territoryId.toString())
-        .param("count", count.toString())
-        .header("Authorization", authToken)
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", testGame.getId())
+                .param("territoryId", territoryId.toString())
+                .param("count", count.toString())
+                .header("Authorization", authToken)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(testGame.getId()))
         .andExpect(jsonPath("$.status").exists());
@@ -151,10 +147,12 @@ class GameControllerAllocateTroopsIntegrationTest {
     Integer count = 3;
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/allocate", testGame.getId())
-        .param("territoryId", territoryId.toString())
-        .param("count", count.toString())
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", testGame.getId())
+                .param("territoryId", territoryId.toString())
+                .param("count", count.toString())
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isUnauthorized()); // 401 quando não há autenticação
   }
 
@@ -166,11 +164,13 @@ class GameControllerAllocateTroopsIntegrationTest {
     Integer count = 3;
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/allocate", invalidGameId)
-        .param("territoryId", territoryId.toString())
-        .param("count", count.toString())
-        .header("Authorization", authToken)
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", invalidGameId)
+                .param("territoryId", territoryId.toString())
+                .param("count", count.toString())
+                .header("Authorization", authToken)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest());
   }
 
@@ -181,28 +181,34 @@ class GameControllerAllocateTroopsIntegrationTest {
     Integer count = 0;
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/allocate", testGame.getId())
-        .param("territoryId", territoryId.toString())
-        .param("count", count.toString())
-        .header("Authorization", authToken)
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", testGame.getId())
+                .param("territoryId", territoryId.toString())
+                .param("count", count.toString())
+                .header("Authorization", authToken)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest());
   }
 
   @Test
   void allocateTroops_WithMissingParameters_ShouldReturnBadRequest() throws Exception {
     // Act & Assert - Missing territoryId
-    mockMvc.perform(post("/api/games/{gameId}/allocate", testGame.getId())
-        .param("count", "3")
-        .header("Authorization", authToken)
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", testGame.getId())
+                .param("count", "3")
+                .header("Authorization", authToken)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest());
 
     // Act & Assert - Missing count
-    mockMvc.perform(post("/api/games/{gameId}/allocate", testGame.getId())
-        .param("territoryId", testTerritory.getId().toString())
-        .header("Authorization", authToken)
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", testGame.getId())
+                .param("territoryId", testTerritory.getId().toString())
+                .header("Authorization", authToken)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest());
   }
 
@@ -213,11 +219,13 @@ class GameControllerAllocateTroopsIntegrationTest {
     Integer count = 3;
 
     // Act & Assert
-    mockMvc.perform(post("/api/games/{gameId}/allocate", testGame.getId())
-        .param("territoryId", invalidTerritoryId.toString())
-        .param("count", count.toString())
-        .header("Authorization", authToken)
-        .contentType(MediaType.APPLICATION_JSON))
+    mockMvc
+        .perform(
+            post("/api/games/{gameId}/allocate", testGame.getId())
+                .param("territoryId", invalidTerritoryId.toString())
+                .param("count", count.toString())
+                .header("Authorization", authToken)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest());
   }
 }

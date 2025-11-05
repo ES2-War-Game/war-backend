@@ -7,5 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.war.game.war_backend.model.TroopMovement;
 
 public interface TroopMovementRepository extends JpaRepository<TroopMovement, Long> {
-    List<TroopMovement> findByGameId(Long gameId);
+  List<TroopMovement> findByGameId(Long gameId);
 }

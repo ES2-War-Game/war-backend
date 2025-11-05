@@ -13,13 +13,21 @@ import com.war.game.war_backend.model.PlayerGame;
 @Repository
 public interface GameTerritoryRepository extends JpaRepository<GameTerritory, Long> {
 
-    List<GameTerritory> findByGameAndOwner(Game game, PlayerGame playerGame);
-    Optional<GameTerritory> findByGameAndTerritoryId(Game game, Long territoryId);
-    List<GameTerritory> findByGame(Game game);
-    List<GameTerritory> findByGame_Id(Long gameId);
-    long countByOwner(PlayerGame owner);
-    Optional<GameTerritory> findByGame_IdAndTerritory_IdAndOwner(Long gameId, Long territoryId, PlayerGame owner);
-    
-    Optional<GameTerritory> findByGame_IdAndTerritory_Id(Long gameId, Long territoryId);
-    Optional<GameTerritory> findByGame_IdAndTerritory_IdAndOwner_Player_Id(Long gameId, Long territoryId, Long playerId);
+  List<GameTerritory> findByGameAndOwner(Game game, PlayerGame playerGame);
+
+  Optional<GameTerritory> findByGameAndTerritoryId(Game game, Long territoryId);
+
+  List<GameTerritory> findByGame(Game game);
+
+  List<GameTerritory> findByGame_Id(Long gameId);
+
+  long countByOwner(PlayerGame owner);
+
+  Optional<GameTerritory> findByGame_IdAndTerritory_IdAndOwner(
+      Long gameId, Long territoryId, PlayerGame owner);
+
+  Optional<GameTerritory> findByGame_IdAndTerritory_Id(Long gameId, Long territoryId);
+
+  Optional<GameTerritory> findByGame_IdAndTerritory_IdAndOwner_Player_Id(
+      Long gameId, Long territoryId, Long playerId);
 }

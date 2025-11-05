@@ -1,13 +1,14 @@
 package com.war.game.war_backend.config;
 
-import com.war.game.war_backend.security.websocket.JwtChannelInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.messaging.simp.config.ChannelRegistration; // Novo Import
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+
+import com.war.game.war_backend.security.websocket.JwtChannelInterceptor;
 
 @Configuration
 @EnableWebSocketMessageBroker
@@ -43,10 +44,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
   @Override
   public void registerStompEndpoints(StompEndpointRegistry registry) {
     // MELHORIA: Restringir allowedOriginPatterns ao invés de '*'
-    registry.addEndpoint("/ws")
+    registry
+        .addEndpoint("/ws")
         // Use as origens permitidas no seu SecurityConfig para maior segurança
         .setAllowedOriginPatterns("http://localhost:5173", "http://localhost:3000")
-
         .withSockJS();
   }
 }

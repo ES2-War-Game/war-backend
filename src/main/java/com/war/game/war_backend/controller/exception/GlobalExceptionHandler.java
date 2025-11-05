@@ -13,8 +13,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-  public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+  @ExceptionHandler(MethodArgumentNotValidException.class)
+  public ResponseEntity<Map<String, String>> handleValidationExceptions(
+      MethodArgumentNotValidException ex) {
     Map<String, String> errors = new HashMap<>();
     for (FieldError error : ex.getBindingResult().getFieldErrors()) {
       // keep first error per field
@@ -24,7 +25,8 @@ public class GlobalExceptionHandler {
   }
 
   @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
-  public ResponseEntity<Map<String, String>> handleMissingParameterException(org.springframework.web.bind.MissingServletRequestParameterException ex) {
+  public ResponseEntity<Map<String, String>> handleMissingParameterException(
+      org.springframework.web.bind.MissingServletRequestParameterException ex) {
     Map<String, String> errors = new HashMap<>();
     errors.put(ex.getParameterName(), "Este parâmetro é obrigatório");
     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
