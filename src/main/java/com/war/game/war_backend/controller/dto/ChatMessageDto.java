@@ -8,8 +8,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChatMessageDto {
-    private String senderUsername;
-    private String content;
-    private long timestamp = System.currentTimeMillis();
-    // private String color; // A cor do jogador para estilização no chat (ver depois)
+  private String senderUsername;
+  private String content;
+  private long timestamp = System.currentTimeMillis();
+  // private String color; // A cor do jogador para estilização no chat (ver depois)
 }

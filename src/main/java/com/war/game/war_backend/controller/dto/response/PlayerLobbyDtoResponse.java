@@ -8,9 +8,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PlayerLobbyDtoResponse {
-    private Long id;
-    private String username;
-    private String color;
-    private boolean isOwner;
-    private String imageUrl;
+  private Long id;
+  private String username;
+  private String color;
+  private boolean isOwner;
+  private String imageUrl;
 }

@@ -8,6 +8,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PlayerUpdateDto {
-    private String email;
-    private String imageUrl;
+  private String email;
+  private String imageUrl;
 }

@@ -5,7 +5,6 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.war.game.war_backend.model.Movement;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -18,38 +17,40 @@ import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.war.game.war_backend.model.Movement;
+
 @TestConfiguration
 @ActiveProfiles("test")
 public class TestRedisConfig {
 
-    @Bean
-    @Primary
-    public RedisConnectionFactory redisConnectionFactory() {
-        RedisConnectionFactory mockFactory = mock(RedisConnectionFactory.class);
-        RedisConnection mockConnection = mock(RedisConnection.class, RETURNS_DEEP_STUBS);
-        StringRedisConnection mockStringConnection = mock(StringRedisConnection.class);
+  @Bean
+  @Primary
+  public RedisConnectionFactory redisConnectionFactory() {
+    RedisConnectionFactory mockFactory = mock(RedisConnectionFactory.class);
+    RedisConnection mockConnection = mock(RedisConnection.class, RETURNS_DEEP_STUBS);
+    StringRedisConnection mockStringConnection = mock(StringRedisConnection.class);
 
-        when(mockFactory.getConnection()).thenReturn(mockConnection);
-        when(mockConnection.stringCommands()).thenReturn(mock(RedisStringCommands.class));
+    when(mockFactory.getConnection()).thenReturn(mockConnection);
+    when(mockConnection.stringCommands()).thenReturn(mock(RedisStringCommands.class));
 
-        // Add more mock behaviors as needed for your tests
-        doNothing().when(mockConnection).close();
-        when(mockConnection.isClosed()).thenReturn(false);
+    // Add more mock behaviors as needed for your tests
+    doNothing().when(mockConnection).close();
+    when(mockConnection.isClosed()).thenReturn(false);
 
-        return mockFactory;
-    }
+    return mockFactory;
+  }
 
-    @Bean
-    @Primary
-    public RedisTemplate<String, Movement> redisTemplate(RedisConnectionFactory connectionFactory) {
-        RedisTemplate<String, Movement> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
-        template.setKeySerializer(new StringRedisSerializer());
-        template.setValueSerializer(new Jackson2JsonRedisSerializer<>(Movement.class));
-        template.setHashKeySerializer(new StringRedisSerializer());
-        template.setHashValueSerializer(new Jackson2JsonRedisSerializer<>(Movement.class));
-        template.setEnableDefaultSerializer(false);
-        template.afterPropertiesSet();
-        return template;
-    }
+  @Bean
+  @Primary
+  public RedisTemplate<String, Movement> redisTemplate(RedisConnectionFactory connectionFactory) {
+    RedisTemplate<String, Movement> template = new RedisTemplate<>();
+    template.setConnectionFactory(connectionFactory);
+    template.setKeySerializer(new StringRedisSerializer());
+    template.setValueSerializer(new Jackson2JsonRedisSerializer<>(Movement.class));
+    template.setHashKeySerializer(new StringRedisSerializer());
+    template.setHashValueSerializer(new Jackson2JsonRedisSerializer<>(Movement.class));
+    template.setEnableDefaultSerializer(false);
+    template.afterPropertiesSet();
+    return template;
+  }
 }

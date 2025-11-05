@@ -9,8 +9,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class LobbyListResponseDto {
 
-    private Long id;
-    private String name;
-    private String status;
-    private int playerCount;
+  private Long id;
+  private String name;
+  private String status;
+  private int playerCount;
 }

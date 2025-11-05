@@ -1,6 +1,7 @@
 package com.war.game.war_backend.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.Set;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -10,7 +11,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import java.util.Set;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -28,55 +31,55 @@ import lombok.ToString;
 @AllArgsConstructor
 public class PlayerGame {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "pk_id")
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "pk_id")
+  private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "player_id", referencedColumnName = "pk_id")
-    private Player player;
+  @ManyToOne
+  @JoinColumn(name = "player_id", referencedColumnName = "pk_id")
+  private Player player;
 
-    @ManyToOne
-    @JoinColumn(name = "game_id", referencedColumnName = "pk_id")
-    @JsonIgnore
-    private Game game;
+  @ManyToOne
+  @JoinColumn(name = "game_id", referencedColumnName = "pk_id")
+  @JsonIgnore
+  private Game game;
 
-    @Column(nullable = true, length = 20)
-    private String color;
+  @Column(nullable = true, length = 20)
+  private String color;
 
-    @Column(name = "turn_order", nullable = true)
-    private Integer turnOrder;
+  @Column(name = "turn_order", nullable = true)
+  private Integer turnOrder;
 
-    @Column(name = "is_owner", nullable = false)
-    private Boolean isOwner = false;
+  @Column(name = "is_owner", nullable = false)
+  private Boolean isOwner = false;
 
-    @ManyToOne
-    @JoinColumn(name = "objective_id", referencedColumnName = "pk_id", nullable = true)
-    private Objective objective;
+  @ManyToOne
+  @JoinColumn(name = "objective_id", referencedColumnName = "pk_id", nullable = true)
+  private Objective objective;
 
-    @OneToMany(mappedBy = "playerGame")
-    @JsonIgnore
-    @EqualsAndHashCode.Exclude
-    private Set<PlayerCard> playerCards;
+  @OneToMany(mappedBy = "playerGame")
+  @JsonIgnore
+  @EqualsAndHashCode.Exclude
+  private Set<PlayerCard> playerCards;
 
-    @OneToMany(mappedBy = "owner")
-    @JsonIgnore
-    @EqualsAndHashCode.Exclude
-    private Set<GameTerritory> ownedTerritories;
+  @OneToMany(mappedBy = "owner")
+  @JsonIgnore
+  @EqualsAndHashCode.Exclude
+  private Set<GameTerritory> ownedTerritories;
 
-    @Column(name = "unallocated_armies", nullable = false)
-    private Integer unallocatedArmies = 0;
+  @Column(name = "unallocated_armies", nullable = false)
+  private Integer unallocatedArmies = 0;
 
-    @Column(name = "conquered_territory_this_turn", nullable = false)
-    private Boolean conqueredTerritoryThisTurn = false;
+  @Column(name = "conquered_territory_this_turn", nullable = false)
+  private Boolean conqueredTerritoryThisTurn = false;
 
-    @Column(name = "still_in_game", nullable = false)
-    private Boolean stillInGame = true;
+  @Column(name = "still_in_game", nullable = false)
+  private Boolean stillInGame = true;
 
-    @Column(name = "username", nullable = false, length = 50)
-    private String username;
+  @Column(name = "username", nullable = false, length = 50)
+  private String username;
 
-    @Column(name = "image_url", nullable = true, length = 255)
-    private String imageUrl;
+  @Column(name = "image_url", nullable = true, length = 255)
+  private String imageUrl;
 }
