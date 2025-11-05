@@ -899,6 +899,84 @@ public class GameService {
     }
 
     @Transactional
+    public Game moveTroops(Long gameId, String initiatingUsername, Long sourceTerritoryId, Long targetTerritoryId, Integer troopCount) {
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
+
+        // Valida se está na fase de MOVEMENT
+        if (!GameStatus.MOVEMENT.name().equals(game.getStatus())) {
+            throw new InvalidGamePhaseException(
+                "Ação inválida. A partida não está na fase de Movimentação. Fase atual: " + game.getStatus(),
+                game.getStatus(),
+                "MOVEMENT"
+            );
+        }
+
+        PlayerGame currentPlayerGame = game.getTurnPlayer();
+        
+        if (!currentPlayerGame.getPlayer().getUsername().equals(initiatingUsername)) {
+            throw new RuntimeException("Não é o seu turno para mover tropas.");
+        }
+
+        // Busca os territórios
+        GameTerritory sourceTerritory = gameTerritoryRepository.findByGame_IdAndTerritory_Id(gameId, sourceTerritoryId)
+                .orElseThrow(() -> new RuntimeException("Território de origem não encontrado."));
+        GameTerritory targetTerritory = gameTerritoryRepository.findByGame_IdAndTerritory_Id(gameId, targetTerritoryId)
+                .orElseThrow(() -> new RuntimeException("Território de destino não encontrado."));
+
+        // Valida se ambos os territórios pertencem ao jogador atual
+        if (!sourceTerritory.getOwner().getId().equals(currentPlayerGame.getId())) {
+            throw new RuntimeException("O território de origem não pertence a você.");
+        }
+        
+        if (!targetTerritory.getOwner().getId().equals(currentPlayerGame.getId())) {
+            throw new RuntimeException("O território de destino não pertence a você.");
+        }
+        
+        // Valida se os territórios são vizinhos
+        boolean isNeighbor = territoryBorderRepository.findByTerritoryIds(
+            sourceTerritory.getTerritory().getId(), 
+            targetTerritory.getTerritory().getId()
+        ).isPresent();
+        
+        if (!isNeighbor) {
+            throw new RuntimeException("O território de destino não é vizinho do território de origem.");
+        }
+
+        // Valida número de tropas disponíveis
+        int availableArmies = sourceTerritory.getStaticArmies();
+        int movedInArmies = sourceTerritory.getMovedInArmies();
+        
+        if (troopCount < 1) {
+            throw new RuntimeException("É necessário mover pelo menos 1 tropa.");
+        }
+        
+        // Se tem movedInArmies, pode mover TODAS as staticArmies (movedInArmies seguram o território)
+        // Se não tem movedInArmies, deve deixar pelo menos 1 staticArmy
+        int maxMoveable;
+        if (movedInArmies > 0) {
+            maxMoveable = availableArmies; // Pode mover todas
+        } else {
+            maxMoveable = availableArmies - 1; // Deve deixar pelo menos 1
+        }
+        
+        if (troopCount > maxMoveable) {
+            throw new RuntimeException("Você deve deixar pelo menos 1 tropa no território de origem. Tropas disponíveis para mover: " + maxMoveable);
+        }
+
+        // Realiza a movimentação
+        sourceTerritory.setStaticArmies(sourceTerritory.getStaticArmies() - troopCount);
+        
+        // Tropas movidas vão para movedInArmies no destino (só podem defender até o fim do turno)
+        targetTerritory.setMovedInArmies(targetTerritory.getMovedInArmies() + troopCount);
+
+        gameTerritoryRepository.save(sourceTerritory);
+        gameTerritoryRepository.save(targetTerritory);
+        
+        return game;
+    }
+
+    @Transactional
     public void checkGameOver(Game game, PlayerGame defeatedPlayer) {
         PlayerGame attackerPlayer = game.getTurnPlayer(); 
         

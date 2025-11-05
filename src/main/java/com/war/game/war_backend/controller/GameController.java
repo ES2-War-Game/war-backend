@@ -506,6 +506,45 @@ public class GameController {
         }
     }
 
+    @PostMapping("/{gameId}/move")
+    @Operation(summary = "Move tropas entre territórios adjacentes do mesmo jogador.", 
+            description = "Permite mover tropas durante a fase de MOVEMENT entre territórios que você possui e que são vizinhos. Deve deixar pelo menos 1 tropa no território de origem.")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> moveTroops(
+            @Parameter(description = "ID da partida.") @PathVariable Long gameId, 
+            @RequestBody(
+                description = "Detalhes da movimentação: território de origem, destino e quantidade de tropas.",
+                required = true,
+                content = @Content(schema = @Schema(implementation = com.war.game.war_backend.controller.dto.request.MoveTroopsRequestDto.class))
+            )
+            @Valid @org.springframework.web.bind.annotation.RequestBody com.war.game.war_backend.controller.dto.request.MoveTroopsRequestDto moveRequest,
+            Principal principal) {
+        
+        String username = principal.getName();
+        
+        try {
+            Game updatedGame = gameService.moveTroops(
+                gameId, 
+                username, 
+                moveRequest.getSourceTerritoryId(),
+                moveRequest.getTargetTerritoryId(),
+                moveRequest.getTroopCount()
+            );
+            
+            GameStateResponseDto gameState = convertToGameStateDto(updatedGame);
+            
+            // Broadcast para todos os jogadores
+            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", gameState);
+            return ResponseEntity.ok(gameState);
+            
+        } catch (InvalidGamePhaseException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     // Método auxiliar para converter Game em GameStateResponseDto (evita referências circulares)
     private GameStateResponseDto convertToGameStateDto(Game game) {
         GameStateResponseDto dto = new GameStateResponseDto();
