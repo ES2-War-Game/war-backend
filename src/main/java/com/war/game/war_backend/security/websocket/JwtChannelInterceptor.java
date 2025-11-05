@@ -1,7 +1,7 @@
 package com.war.game.war_backend.security.websocket;
 
-import com.war.game.war_backend.security.jwt.JwtTokenUtil;
 import com.war.game.war_backend.security.CustomUserDetailsService;
+import com.war.game.war_backend.security.jwt.JwtTokenUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,14 +26,16 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
     private final CustomUserDetailsService userDetailsService;
 
     @Autowired
-    public JwtChannelInterceptor(JwtTokenUtil jwtTokenUtil, CustomUserDetailsService userDetailsService) {
+    public JwtChannelInterceptor(
+            JwtTokenUtil jwtTokenUtil, CustomUserDetailsService userDetailsService) {
         this.jwtTokenUtil = jwtTokenUtil;
         this.userDetailsService = userDetailsService;
     }
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
-        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        StompHeaderAccessor accessor =
+                MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
             // Obtém o cabeçalho Authorization
@@ -41,38 +43,42 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
 
             if (authorizationHeader != null && authorizationHeader.startsWith(BEARER_PREFIX)) {
                 String jwtToken = authorizationHeader.substring(BEARER_PREFIX.length());
-                
+
                 try {
                     String username = jwtTokenUtil.getUsernameFromToken(jwtToken);
-                    
+
                     if (username != null) {
                         // 1. Carrega os detalhes do usuário
                         UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
                         // 2. Chama validateToken com os argumentos CORRETOS: (String, UserDetails)
-                        if (jwtTokenUtil.validateToken(jwtToken, userDetails)) { 
-                            
-                            // Cria o objeto de autenticação 
-                            UsernamePasswordAuthenticationToken authentication = 
-                                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                            
+                        if (jwtTokenUtil.validateToken(jwtToken, userDetails)) {
+
+                            // Cria o objeto de autenticação
+                            UsernamePasswordAuthenticationToken authentication =
+                                    new UsernamePasswordAuthenticationToken(
+                                            userDetails, null, userDetails.getAuthorities());
+
                             // Define o usuário autenticado na sessão WebSocket
                             accessor.setUser(authentication);
-                            
+
                             logger.info("STOMP CONNECT: Usuário autenticado: {}", username);
                         } else {
                             logger.warn("STOMP CONNECT: Token JWT inválido ou expirado.");
                         }
                     } else {
-                         logger.warn("STOMP CONNECT: Username nulo no token.");
+                        logger.warn("STOMP CONNECT: Username nulo no token.");
                     }
                 } catch (UsernameNotFoundException e) {
                     logger.warn("STOMP CONNECT: Usuário não encontrado no banco de dados.");
                 } catch (Exception e) {
-                    logger.warn("STOMP CONNECT: Erro de processamento/validação de token: {}", e.getMessage());
+                    logger.warn(
+                            "STOMP CONNECT: Erro de processamento/validação de token: {}",
+                            e.getMessage());
                 }
             } else {
-                 logger.warn("STOMP CONNECT: Cabeçalho de autorização não encontrado ou formato incorreto.");
+                logger.warn(
+                        "STOMP CONNECT: Cabeçalho de autorização não encontrado ou formato incorreto.");
             }
         }
 

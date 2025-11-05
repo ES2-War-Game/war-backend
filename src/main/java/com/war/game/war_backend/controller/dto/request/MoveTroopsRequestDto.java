@@ -10,7 +10,9 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Requisição para movimentar tropas entre territórios adjacentes do mesmo jogador")
+@Schema(
+        description =
+                "Requisição para movimentar tropas entre territórios adjacentes do mesmo jogador")
 public class MoveTroopsRequestDto {
 
     @NotNull(message = "O ID do território de origem é obrigatório.")
@@ -23,6 +25,10 @@ public class MoveTroopsRequestDto {
 
     @NotNull(message = "O número de tropas é obrigatório.")
     @Min(value = 1, message = "É necessário mover pelo menos 1 tropa.")
-    @Schema(description = "Número de tropas a serem movidas (deve deixar pelo menos 1 no território de origem)", example = "5", minimum = "1")
+    @Schema(
+            description =
+                    "Número de tropas a serem movidas (deve deixar pelo menos 1 no território de origem)",
+            example = "5",
+            minimum = "1")
     private Integer troopCount;
 }

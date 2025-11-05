@@ -1,32 +1,33 @@
 package com.war.game.war_backend.config;
 
+import com.war.game.war_backend.model.Objective;
+import com.war.game.war_backend.repository.ObjectiveRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 
-import com.war.game.war_backend.model.Objective;
-import com.war.game.war_backend.repository.ObjectiveRepository;
-
 @Configuration
 public class ObjectiveInitializerConfig {
-    
+
     @Bean
     @Order(3) // Executa por último
     public CommandLineRunner objectiveInitializer(ObjectiveRepository objectiveRepository) {
         return args -> {
             System.out.println("=== ObjectiveInitializer: Iniciando verificação ===");
-            
+
             long objectiveCount = objectiveRepository.count();
-            System.out.println("=== ObjectiveInitializer: Objetivos existentes: " + objectiveCount + " ===");
-            
+            System.out.println(
+                    "=== ObjectiveInitializer: Objetivos existentes: " + objectiveCount + " ===");
+
             if (objectiveCount > 0) {
-                System.out.println("=== ObjectiveInitializer: Objetivos já existem, pulando inicialização ===");
+                System.out.println(
+                        "=== ObjectiveInitializer: Objetivos já existem, pulando inicialização ===");
                 return;
             }
 
             System.out.println("=== ObjectiveInitializer: Criando objetivos do jogo ===");
-            
+
             // Conquistar Continentes:
             Objective obj1 = new Objective();
             obj1.setDescription("Conquistar a América do Sul e a África");
@@ -44,17 +45,20 @@ public class ObjectiveInitializerConfig {
             objectiveRepository.save(obj3);
 
             Objective obj4 = new Objective();
-            obj4.setDescription("Conquistar a Europa, a América do Sul e mais um continente à sua escolha");
+            obj4.setDescription(
+                    "Conquistar a Europa, a América do Sul e mais um continente à sua escolha");
             obj4.setType("CONQUER_CONTINENT");
             objectiveRepository.save(obj4);
 
             Objective obj5 = new Objective();
-            obj5.setDescription("Conquistar a Europa, a Oceania e mais um continente à sua escolha");
+            obj5.setDescription(
+                    "Conquistar a Europa, a Oceania e mais um continente à sua escolha");
             obj5.setType("CONQUER_CONTINENT");
             objectiveRepository.save(obj5);
 
             Objective obj6 = new Objective();
-            obj6.setDescription("Conquistar a Europa, a América do Norte e mais um continente à sua escolha");
+            obj6.setDescription(
+                    "Conquistar a Europa, a América do Norte e mais um continente à sua escolha");
             obj6.setType("CONQUER_CONTINENT");
             objectiveRepository.save(obj6);
 
@@ -114,8 +118,9 @@ public class ObjectiveInitializerConfig {
             obj17.setDescription("Eliminar totalmente o jogador com exércitos roxos");
             obj17.setType("ELIMINATE_PLAYER");
             objectiveRepository.save(obj17);
-            
-            System.out.println("=== ObjectiveInitializer: Finalizado! Total de objetivos criados: 18 ===");
+
+            System.out.println(
+                    "=== ObjectiveInitializer: Finalizado! Total de objetivos criados: 18 ===");
         };
     }
 }

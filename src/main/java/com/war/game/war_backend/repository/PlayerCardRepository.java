@@ -2,9 +2,7 @@ package com.war.game.war_backend.repository;
 
 import com.war.game.war_backend.model.PlayerCard;
 import com.war.game.war_backend.model.PlayerGame;
-
 import java.util.List;
-
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

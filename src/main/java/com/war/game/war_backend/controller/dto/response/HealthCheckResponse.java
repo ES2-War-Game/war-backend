@@ -50,19 +50,17 @@ public class HealthCheckResponse {
 
     public static HealthCheckResponse ok(long duration) {
         return new HealthCheckResponse(
-            "ok",
-            ManagementFactory.getRuntimeMXBean().getUptime() / 1000.0,
-            Instant.now().toString(),
-            duration
-        );
+                "ok",
+                ManagementFactory.getRuntimeMXBean().getUptime() / 1000.0,
+                Instant.now().toString(),
+                duration);
     }
 
     public static HealthCheckResponse error(String message) {
         return new HealthCheckResponse(
-            "error",
-            ManagementFactory.getRuntimeMXBean().getUptime() / 1000.0,
-            Instant.now().toString(),
-            -1
-        );
+                "error",
+                ManagementFactory.getRuntimeMXBean().getUptime() / 1000.0,
+                Instant.now().toString(),
+                -1);
     }
 }

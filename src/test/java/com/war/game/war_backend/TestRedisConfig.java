@@ -7,6 +7,6 @@ import org.springframework.context.annotation.Profile;
 @Configuration
 @Profile("test")
 public class TestRedisConfig {
-  // Minimal test Redis configuration placeholder.
-  // Add Redis beans here if your tests require an embedded or mock Redis.
+    // Minimal test Redis configuration placeholder.
+    // Add Redis beans here if your tests require an embedded or mock Redis.
 }

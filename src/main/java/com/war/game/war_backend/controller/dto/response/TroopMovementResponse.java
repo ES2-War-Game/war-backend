@@ -1,7 +1,6 @@
 package com.war.game.war_backend.controller.dto.response;
 
 import java.time.LocalDateTime;
-
 import lombok.Data;
 
 @Data
