@@ -11,21 +11,19 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtTokenUtil {
 
-    public String generateToken(UserDetails userDetails) {
-        if (userDetails == null || userDetails.getUsername() == null) return null;
-        return "test-token-" + userDetails.getUsername();
-    }
+  public String generateToken(UserDetails userDetails) {
+    if (userDetails == null || userDetails.getUsername() == null) return null;
+    return "test-token-" + userDetails.getUsername();
+  }
 
-    public String getUsernameFromToken(String token) {
-        if (token == null) return null;
-        if (token.startsWith("test-token-")) return token.substring("test-token-".length());
-        return null;
-    }
+  public String getUsernameFromToken(String token) {
+    if (token == null) return null;
+    if (token.startsWith("test-token-")) return token.substring("test-token-".length());
+    return null;
+  }
 
-    public Boolean validateToken(String token, UserDetails userDetails) {
-        String username = getUsernameFromToken(token);
-        return username != null
-                && userDetails != null
-                && username.equals(userDetails.getUsername());
-    }
+  public Boolean validateToken(String token, UserDetails userDetails) {
+    String username = getUsernameFromToken(token);
+    return username != null && userDetails != null && username.equals(userDetails.getUsername());
+  }
 }

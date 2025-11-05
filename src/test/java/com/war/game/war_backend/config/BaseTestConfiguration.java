@@ -13,5 +13,5 @@ import org.springframework.test.context.ActiveProfiles;
 @EnableAutoConfiguration(exclude = {RedisAutoConfiguration.class})
 @PropertySource("classpath:application-test.properties")
 public class BaseTestConfiguration {
-    // Common test configuration goes here
+  // Common test configuration goes here
 }

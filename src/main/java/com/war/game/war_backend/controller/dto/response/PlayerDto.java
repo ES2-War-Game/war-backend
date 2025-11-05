@@ -8,8 +8,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PlayerDto {
-    private Long id;
-    private String username;
-    private String email;
-    private String imageUrl;
+  private Long id;
+  private String username;
+  private String email;
+  private String imageUrl;
 }
