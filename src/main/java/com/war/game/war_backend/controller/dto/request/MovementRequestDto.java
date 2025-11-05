@@ -10,15 +10,12 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MovementRequestDto {
-    @NotNull
-    private Long gameId;
-    
-    @NotNull
-    private Long originTerritoryId;
-    
-    @NotNull
-    private Long destinationTerritoryId;
-    
+    @NotNull private Long gameId;
+
+    @NotNull private Long originTerritoryId;
+
+    @NotNull private Long destinationTerritoryId;
+
     @NotNull
     @Min(1)
     private Integer troops;

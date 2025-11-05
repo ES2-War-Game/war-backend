@@ -3,8 +3,9 @@ package com.war.game.war_backend.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.war.game.war_backend.model.Player;
+import com.war.game.war_backend.repository.PlayerRepository;
 import java.util.HashSet;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,13 +23,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import com.war.game.war_backend.model.Player;
-import com.war.game.war_backend.repository.PlayerRepository;
-
 /**
- * Testes de integração que rodam contra uma instância real do Postgres fornecida pelo Testcontainers.
+ * Testes de integração que rodam contra uma instância real do Postgres fornecida pelo
+ * Testcontainers.
  *
- * Requisito: o Docker precisa estar disponível na máquina que executa os testes.
+ * <p>Requisito: o Docker precisa estar disponível na máquina que executa os testes.
  */
 @ExtendWith(SpringExtension.class)
 @SpringBootTest
@@ -40,10 +39,11 @@ public class DataPersistencePostgresIntegrationTest {
 
     @Container
     @SuppressWarnings("resource")
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(DockerImageName.parse("postgres:15-alpine"))
-        .withDatabaseName("testdb")
-        .withUsername("test")
-        .withPassword("test");
+    static PostgreSQLContainer<?> postgres =
+            new PostgreSQLContainer<>(DockerImageName.parse("postgres:15-alpine"))
+                    .withDatabaseName("testdb")
+                    .withUsername("test")
+                    .withPassword("test");
 
     @DynamicPropertySource
     static void overrideProperties(DynamicPropertyRegistry registry) {
@@ -52,11 +52,11 @@ public class DataPersistencePostgresIntegrationTest {
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "update");
-        registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
+        registry.add(
+                "spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
     }
 
-    @Autowired
-    private PlayerRepository playerRepository;
+    @Autowired private PlayerRepository playerRepository;
 
     @Test
     void salvarEBuscarPlayer_porId_devePersistirERecuperar() {
@@ -83,7 +83,7 @@ public class DataPersistencePostgresIntegrationTest {
         Player p2 = new Player(username, "b.pg@example.com", "p2");
         p2.setRoles(new HashSet<>());
 
-        assertThrows(DataIntegrityViolationException.class, () -> playerRepository.saveAndFlush(p2));
+        assertThrows(
+                DataIntegrityViolationException.class, () -> playerRepository.saveAndFlush(p2));
     }
-
 }

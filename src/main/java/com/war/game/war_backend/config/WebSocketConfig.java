@@ -13,40 +13,39 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-  private final JwtChannelInterceptor jwtChannelInterceptor;
+    private final JwtChannelInterceptor jwtChannelInterceptor;
 
-  // Injeção de Dependência do Interceptor
-  @Autowired
-  public WebSocketConfig(JwtChannelInterceptor jwtChannelInterceptor) {
-    this.jwtChannelInterceptor = jwtChannelInterceptor;
-  }
+    // Injeção de Dependência do Interceptor
+    @Autowired
+    public WebSocketConfig(JwtChannelInterceptor jwtChannelInterceptor) {
+        this.jwtChannelInterceptor = jwtChannelInterceptor;
+    }
 
-  @Override
-  public void configureMessageBroker(MessageBrokerRegistry registry) {
-    // Define o prefixo para o destino das mensagens enviadas do servidor para o
-    // cliente
-    registry.enableSimpleBroker("/topic", "/queue");
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry registry) {
+        // Define o prefixo para o destino das mensagens enviadas do servidor para o
+        // cliente
+        registry.enableSimpleBroker("/topic", "/queue");
 
-    // Define o prefixo para o destino das mensagens enviadas do cliente para o
-    // servidor
-    registry.setApplicationDestinationPrefixes("/app");
-  }
+        // Define o prefixo para o destino das mensagens enviadas do cliente para o
+        // servidor
+        registry.setApplicationDestinationPrefixes("/app");
+    }
 
-  // REGISTRO DO INTERCEPTOR DE CANAL AQUI
-  @Override
-  public void configureClientInboundChannel(ChannelRegistration registration) {
-    // Adiciona o interceptor para processar a autenticação de mensagens de entrada
-    // (incluindo CONNECT)
-    registration.interceptors(jwtChannelInterceptor);
-  }
+    // REGISTRO DO INTERCEPTOR DE CANAL AQUI
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        // Adiciona o interceptor para processar a autenticação de mensagens de entrada
+        // (incluindo CONNECT)
+        registration.interceptors(jwtChannelInterceptor);
+    }
 
-  @Override
-  public void registerStompEndpoints(StompEndpointRegistry registry) {
-    // MELHORIA: Restringir allowedOriginPatterns ao invés de '*'
-    registry.addEndpoint("/ws")
-        // Use as origens permitidas no seu SecurityConfig para maior segurança
-        .setAllowedOriginPatterns("http://localhost:5173", "http://localhost:3000")
-
-        .withSockJS();
-  }
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // MELHORIA: Restringir allowedOriginPatterns ao invés de '*'
+        registry.addEndpoint("/ws")
+                // Use as origens permitidas no seu SecurityConfig para maior segurança
+                .setAllowedOriginPatterns("http://localhost:5173", "http://localhost:3000")
+                .withSockJS();
+    }
 }

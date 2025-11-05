@@ -1,11 +1,10 @@
 package com.war.game.war_backend.controller.dto.response;
 
 import com.war.game.war_backend.model.Game;
+import java.util.List;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-
-import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -16,7 +15,7 @@ public class GameLobbyDetailsDto {
     private String lobbyName;
     private String status;
     private int playerCount;
-    
+
     private List<PlayerLobbyDtoResponse> players;
 
     public GameLobbyDetailsDto(Game game, List<PlayerLobbyDtoResponse> playerDtos) {

@@ -2,7 +2,6 @@ package com.war.game.war_backend.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -27,28 +26,28 @@ import lombok.ToString;
 @AllArgsConstructor
 @EqualsAndHashCode(of = "id")
 public class TerritoryBorder {
-  @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
-  @Column(name = "pk_id")
-  private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "pk_id")
+    private Long id;
 
-  @ManyToOne
-  @JoinColumn(name = "territory_a_id", nullable = false)
-  @JsonIgnore
-  private Territory territoryA;
+    @ManyToOne
+    @JoinColumn(name = "territory_a_id", nullable = false)
+    @JsonIgnore
+    private Territory territoryA;
 
-  @ManyToOne
-  @JoinColumn(name = "territory_b_id", nullable = false)
-  @JsonIgnore
-  private Territory territoryB;
+    @ManyToOne
+    @JoinColumn(name = "territory_b_id", nullable = false)
+    @JsonIgnore
+    private Territory territoryB;
 
-  @JsonProperty("territory_a_id")
-  public Long getTerritoryAId() {
-    return territoryA != null ? territoryA.getId() : null;
-  }
+    @JsonProperty("territory_a_id")
+    public Long getTerritoryAId() {
+        return territoryA != null ? territoryA.getId() : null;
+    }
 
-  @JsonProperty("territory_b_id")
-  public Long getTerritoryBId() {
-    return territoryB != null ? territoryB.getId() : null;
-  }
+    @JsonProperty("territory_b_id")
+    public Long getTerritoryBId() {
+        return territoryB != null ? territoryB.getId() : null;
+    }
 }

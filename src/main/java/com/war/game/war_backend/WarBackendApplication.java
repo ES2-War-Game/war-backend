@@ -6,9 +6,13 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-@SecurityScheme(name = "bearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
+@SecurityScheme(
+        name = "bearerAuth",
+        type = SecuritySchemeType.HTTP,
+        scheme = "bearer",
+        bearerFormat = "JWT")
 public class WarBackendApplication {
-  public static void main(String[] args) {
-    SpringApplication.run(WarBackendApplication.class, args);
-  }
+    public static void main(String[] args) {
+        SpringApplication.run(WarBackendApplication.class, args);
+    }
 }

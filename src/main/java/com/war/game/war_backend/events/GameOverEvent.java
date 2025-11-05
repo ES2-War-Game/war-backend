@@ -1,9 +1,8 @@
 package com.war.game.war_backend.events;
 
-import org.springframework.context.ApplicationEvent;
-
 import com.war.game.war_backend.model.Game;
 import com.war.game.war_backend.model.PlayerGame;
+import org.springframework.context.ApplicationEvent;
 
 public class GameOverEvent extends ApplicationEvent {
 
@@ -19,7 +18,12 @@ public class GameOverEvent extends ApplicationEvent {
      * @param condition A condição de vitória (ex: "OBJECTIVE_COMPLETED").
      * @param objectiveDescription A descrição do objetivo cumprido.
      */
-    public GameOverEvent(Object source, Game game, PlayerGame winner, String condition, String objectiveDescription) {
+    public GameOverEvent(
+            Object source,
+            Game game,
+            PlayerGame winner,
+            String condition,
+            String objectiveDescription) {
         super(source);
         this.game = game;
         this.winner = winner;

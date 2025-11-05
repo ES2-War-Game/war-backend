@@ -5,6 +5,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.war.game.war_backend.model.Movement;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -17,8 +18,6 @@ import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.test.context.ActiveProfiles;
 
-import com.war.game.war_backend.model.Movement;
-
 @TestConfiguration
 @ActiveProfiles("test")
 public class TestRedisConfig {
@@ -29,14 +28,14 @@ public class TestRedisConfig {
         RedisConnectionFactory mockFactory = mock(RedisConnectionFactory.class);
         RedisConnection mockConnection = mock(RedisConnection.class, RETURNS_DEEP_STUBS);
         StringRedisConnection mockStringConnection = mock(StringRedisConnection.class);
-        
+
         when(mockFactory.getConnection()).thenReturn(mockConnection);
         when(mockConnection.stringCommands()).thenReturn(mock(RedisStringCommands.class));
-        
+
         // Add more mock behaviors as needed for your tests
         doNothing().when(mockConnection).close();
         when(mockConnection.isClosed()).thenReturn(false);
-        
+
         return mockFactory;
     }
 
