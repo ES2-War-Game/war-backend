@@ -10,4 +10,5 @@ import lombok.NoArgsConstructor;
 public class PlayerUpdateDto {
   private String email;
   private String imageUrl;
+  private String username;
 }

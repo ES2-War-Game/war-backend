@@ -64,6 +64,7 @@ public class GameService {
   private final PlayerService playerService;
   private final Random random = new Random();
 
+  // Bônus por continente (inglês)
   private static final Map<String, Integer> CONTINENT_BONUSES =
       Map.of(
           "Asia", 7,
@@ -72,6 +73,16 @@ public class GameService {
           "Africa", 3,
           "South America", 2,
           "Oceania", 2);
+
+  // Mapeamento de nomes de continentes do banco (português) para inglês
+  private static final Map<String, String> CONTINENT_NAME_MAP =
+      Map.ofEntries(
+          Map.entry("América do Norte", "North America"),
+          Map.entry("América do Sul", "South America"),
+          Map.entry("Europa", "Europe"),
+          Map.entry("África", "Africa"),
+          Map.entry("Ásia", "Asia"),
+          Map.entry("Oceania", "Oceania"));
 
   // Método auxiliar para remover jogador de lobbies ativos
   @Transactional
@@ -176,6 +187,12 @@ public class GameService {
 
   public List<Game> findAllLobbies() {
     return gameRepository.findByStatusWithPlayers(GameStatus.LOBBY.name());
+  }
+
+  /** Retorna partidas finalizadas (status = FINISHED). */
+  @Transactional(readOnly = true)
+  public List<Game> findFinishedGames() {
+    return gameRepository.findByStatus(GameStatus.FINISHED.name());
   }
 
   public Game findCurrentGameForPlayer(Player player) {
@@ -620,16 +637,12 @@ public class GameService {
     int territoryTroops = Math.max(3, totalTerritories / 2);
     int continentTroops = 0;
 
-    // Contar Bônus de Continentes
-
     // Agrupa os territórios por continente para verificar a posse total
     Map<String, Long> territoriesPerContinent =
         controlledTerritories.stream()
             .collect(
                 Collectors.groupingBy(
-                    gt -> gt.getTerritory().getContinent(), // Assumindo que Territory
-                    // tem getContinent()
-                    Collectors.counting()));
+                    gt -> gt.getTerritory().getContinent(), Collectors.counting()));
 
     // Obtém todos os nomes de continentes únicos do mapa
     List<String> allContinents =
@@ -645,10 +658,11 @@ public class GameService {
       // Conta quantos territórios existem neste continente
       long totalContinentTerritories = territoryRepository.countByContinent(continentName);
 
-      // Checa se o jogador tem todos os tirritórios do continente
+      // Checa se o jogador tem todos os territórios do continente
       if (playerTerritoryCount == totalContinentTerritories) {
-        // Adiciona o bônus fixo daquele continente
-        continentTroops += CONTINENT_BONUSES.getOrDefault(continentName, 0);
+        // Mapeia o nome do continente para inglês se necessário
+        String bonusKey = CONTINENT_NAME_MAP.getOrDefault(continentName, continentName);
+        continentTroops += CONTINENT_BONUSES.getOrDefault(bonusKey, 0);
       }
     }
 

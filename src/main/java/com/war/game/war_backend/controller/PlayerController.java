@@ -1,5 +1,6 @@
 package com.war.game.war_backend.controller;
 
+import java.security.Principal;
 import java.util.List;
 
 import jakarta.validation.Valid;
@@ -7,6 +8,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,6 +22,7 @@ import com.war.game.war_backend.controller.dto.request.PlayerRegistrationDto;
 import com.war.game.war_backend.controller.dto.request.PlayerUpdateDto;
 import com.war.game.war_backend.controller.dto.response.JwtResponseDto;
 import com.war.game.war_backend.controller.dto.response.PlayerDto;
+import com.war.game.war_backend.exceptions.UsernameConflictException;
 import com.war.game.war_backend.model.Player;
 import com.war.game.war_backend.security.jwt.JwtTokenUtil;
 import com.war.game.war_backend.services.PlayerService;
@@ -114,6 +117,24 @@ public class PlayerController {
     return ResponseEntity.ok(dtos);
   }
 
+  @GetMapping("/me")
+  @Operation(
+      summary = "Retorna o jogador autenticado",
+      description = "Retorna os dados do jogador atualmente autenticado.")
+  @PreAuthorize("isAuthenticated()")
+  public ResponseEntity<PlayerDto> getCurrentPlayer(Principal principal) {
+    try {
+      String username = principal.getName();
+      Player player = playerService.getPlayerByUsername(username);
+      PlayerDto dto =
+          new PlayerDto(
+              player.getId(), player.getUsername(), player.getEmail(), player.getImageUrl());
+      return ResponseEntity.ok(dto);
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    }
+  }
+
   @GetMapping("/{id}")
   @Operation(
       summary = "Buscar jogador por ID",
@@ -138,6 +159,7 @@ public class PlayerController {
       description = "Atualiza informações do jogador pelo ID.")
   @ApiResponse(responseCode = "200", description = "Jogador atualizado com sucesso")
   @ApiResponse(responseCode = "404", description = "Jogador não encontrado")
+  @ApiResponse(responseCode = "409", description = "Nome de usuário ou e-mail já existe")
   public ResponseEntity<PlayerDto> updatePlayer(
       @PathVariable Long id, @RequestBody PlayerUpdateDto updateDto) {
     try {
@@ -146,6 +168,8 @@ public class PlayerController {
           new PlayerDto(
               updated.getId(), updated.getUsername(), updated.getEmail(), updated.getImageUrl());
       return ResponseEntity.ok(dto);
+    } catch (UsernameConflictException e) {
+      return ResponseEntity.status(HttpStatus.CONFLICT).body(null);
     } catch (IllegalArgumentException e) {
       return ResponseEntity.notFound().build();
     }

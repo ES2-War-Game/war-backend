@@ -127,6 +127,21 @@ public class GameController {
     return ResponseEntity.ok(lobbyDtos);
   }
 
+  @GetMapping("/history")
+  @Operation(
+      summary = "Lista partidas finalizadas.",
+      description = "Retorna jogos com status 'FINISHED'.")
+  @SecurityRequirement(name = "bearerAuth")
+  @PreAuthorize("isAuthenticated()")
+  public ResponseEntity<List<GameStateResponseDto>> getFinishedGames() {
+    List<Game> finished = gameService.findFinishedGames();
+
+    List<GameStateResponseDto> dtos =
+        finished.stream().map(this::convertToGameStateDto).collect(Collectors.toList());
+
+    return ResponseEntity.ok(dtos);
+  }
+
   @GetMapping("/current-game")
   @Operation(
       summary = "Retorna o jogo/lobby ativo do jogador.",
@@ -168,6 +183,23 @@ public class GameController {
       GameStateResponseDto gameState = convertToGameStateDto(currentGame);
       return ResponseEntity.ok(gameState);
 
+    } catch (RuntimeException e) {
+      return ResponseEntity.badRequest().body(e.getMessage());
+    }
+  }
+
+  @GetMapping("/{gameId}")
+  @Operation(
+      summary = "Retorna todas as informações de um jogo específico.",
+      description =
+          "Retorna o estado completo de um jogo, seja ele um lobby ou uma partida em andamento.")
+  @SecurityRequirement(name = "bearerAuth")
+  @PreAuthorize("isAuthenticated()")
+  public ResponseEntity<?> getGameById(@PathVariable Long gameId) {
+    try {
+      Game game = gameService.findGameById(gameId);
+      GameStateResponseDto gameState = convertToGameStateDto(game);
+      return ResponseEntity.ok(gameState);
     } catch (RuntimeException e) {
       return ResponseEntity.badRequest().body(e.getMessage());
     }
