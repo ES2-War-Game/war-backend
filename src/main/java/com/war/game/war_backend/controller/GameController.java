@@ -188,6 +188,23 @@ public class GameController {
     }
   }
 
+  @GetMapping("/{gameId}")
+  @Operation(
+      summary = "Retorna todas as informações de um jogo específico.",
+      description =
+          "Retorna o estado completo de um jogo, seja ele um lobby ou uma partida em andamento.")
+  @SecurityRequirement(name = "bearerAuth")
+  @PreAuthorize("isAuthenticated()")
+  public ResponseEntity<?> getGameById(@PathVariable Long gameId) {
+    try {
+      Game game = gameService.findGameById(gameId);
+      GameStateResponseDto gameState = convertToGameStateDto(game);
+      return ResponseEntity.ok(gameState);
+    } catch (RuntimeException e) {
+      return ResponseEntity.badRequest().body(e.getMessage());
+    }
+  }
+
   @GetMapping("/{gameId}/current-turn")
   @Operation(
       summary = "Retorna informações sobre o turno atual da partida.",
