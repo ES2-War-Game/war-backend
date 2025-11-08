@@ -178,6 +178,12 @@ public class GameService {
     return gameRepository.findByStatusWithPlayers(GameStatus.LOBBY.name());
   }
 
+  /** Retorna partidas finalizadas (status = FINISHED). */
+  @Transactional(readOnly = true)
+  public List<Game> findFinishedGames() {
+    return gameRepository.findByStatus(GameStatus.FINISHED.name());
+  }
+
   public Game findCurrentGameForPlayer(Player player) {
     // Busca qualquer jogo ativo do jogador (lobby ou em andamento)
     List<PlayerGame> activeGames = playerGameRepository.findByPlayerAndStillInGame(player, true);

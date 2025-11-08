@@ -50,6 +50,8 @@ public class PlayerService {
     Player newPlayer = new Player();
     newPlayer.setUsername(registrationDto.getUsername());
     newPlayer.setEmail(registrationDto.getEmail());
+    // Imagem padrão
+    newPlayer.setImageUrl("/src/assets/player.png");
 
     String hashedPassword = passwordEncoder.encode(registrationDto.getPassword());
     newPlayer.setPassword(hashedPassword);
@@ -76,9 +78,19 @@ public class PlayerService {
   }
 
   public Player updatePlayer(Long id, PlayerUpdateDto updateDto) {
-    Player player = getPlayerById(id);
+    Player player =
+        playerRepository
+            .findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Jogador não encontrado."));
     if (updateDto.getEmail() != null) player.setEmail(updateDto.getEmail());
     if (updateDto.getImageUrl() != null) player.setImageUrl(updateDto.getImageUrl());
+    if (updateDto.getUsername() != null && !updateDto.getUsername().equals(player.getUsername())) {
+      if (playerRepository.findByUsername(updateDto.getUsername()).isPresent()) {
+        throw new com.war.game.war_backend.exceptions.UsernameConflictException(
+            "Nome de usuario ja existe!");
+      }
+      player.setUsername(updateDto.getUsername());
+    }
     return playerRepository.save(player);
   }
 }
