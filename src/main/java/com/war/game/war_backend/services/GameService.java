@@ -11,9 +11,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -42,6 +39,8 @@ import com.war.game.war_backend.repository.PlayerGameRepository;
 import com.war.game.war_backend.repository.TerritoryBorderRepository;
 import com.war.game.war_backend.repository.TerritoryRepository;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -459,15 +458,7 @@ public class GameService {
       pg.setUnallocatedArmies(initialTroops);
     }
 
-    // Distribuição de Objetivos
-    List<Objective> allObjectives = objectiveRepository.findAll();
-    Collections.shuffle(allObjectives, new Random());
-
-    for (int i = 0; i < playerGames.size(); i++) {
-      // Usa o módulo para garantir que objetivos sejam repetidos se houver mais jogadores que
-      // objetivos
-      playerGames.get(i).setObjective(allObjectives.get(i % allObjectives.size()));
-    }
+    distributeObjectivesSmartly(playerGames);
 
     // Distribuição de Territórios
     List<Territory> allTerritories = territoryRepository.findAll();
@@ -1144,6 +1135,103 @@ public class GameService {
       playerIndex++;
     }
     return gameTerritories;
+  }
+
+  private void distributeObjectivesSmartly(List<PlayerGame> playerGames) {
+    List<Objective> allObjectives = objectiveRepository.findAll();
+
+    Map<String, PlayerGame> colorToPlayerMap =
+        playerGames.stream()
+            .collect(
+                Collectors.toMap(
+                    PlayerGame::getColor, pg -> pg, (existing, replacement) -> existing));
+
+    List<Objective> eliminationObjectives =
+        allObjectives.stream()
+            .filter(obj -> "ELIMINATE_PLAYER".equals(obj.getType()))
+            .collect(Collectors.toList());
+
+    List<Objective> nonEliminationObjectives =
+        allObjectives.stream()
+            .filter(obj -> !"ELIMINATE_PLAYER".equals(obj.getType()))
+            .collect(Collectors.toList());
+
+    Collections.shuffle(eliminationObjectives, random);
+    Collections.shuffle(nonEliminationObjectives, random);
+
+    for (PlayerGame playerGame : playerGames) {
+      Objective assignedObjective = null;
+
+      for (Objective eliminationObj : eliminationObjectives) {
+        if (isEliminationObjectiveValid(eliminationObj, playerGame, colorToPlayerMap)) {
+          assignedObjective = eliminationObj;
+          eliminationObjectives.remove(eliminationObj);
+          break;
+        }
+      }
+
+      if (assignedObjective == null && !nonEliminationObjectives.isEmpty()) {
+        assignedObjective = nonEliminationObjectives.remove(0);
+      }
+
+      if (assignedObjective == null && !nonEliminationObjectives.isEmpty()) {
+        assignedObjective =
+            nonEliminationObjectives.get(random.nextInt(nonEliminationObjectives.size()));
+      }
+
+      if (assignedObjective == null && !allObjectives.isEmpty()) {
+        assignedObjective = allObjectives.get(random.nextInt(allObjectives.size()));
+      }
+
+      playerGame.setObjective(assignedObjective);
+    }
+  }
+
+  private boolean isEliminationObjectiveValid(
+      Objective objective, PlayerGame playerGame, Map<String, PlayerGame> colorToPlayerMap) {
+
+    String description = objective.getDescription();
+    String targetColor = extractTargetColorFromObjective(description);
+
+    if (targetColor == null) {
+      return false;
+    }
+
+    if (!colorToPlayerMap.containsKey(targetColor)) {
+      return false;
+    }
+
+    PlayerGame targetPlayer = colorToPlayerMap.get(targetColor);
+    if (targetPlayer.getId().equals(playerGame.getId())) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private String extractTargetColorFromObjective(String description) {
+    if (description == null || description.isEmpty()) {
+      return null;
+    }
+
+    Map<String, String> colorMapping =
+        Map.of(
+            "verdes", "green",
+            "azuis", "blue",
+            "vermelhos", "red",
+            "amarelos", "#bfa640",
+            "pretos", "black",
+            "roxos", "purple");
+
+    String descriptionLower = description.toLowerCase();
+
+    for (Map.Entry<String, String> entry : colorMapping.entrySet()) {
+      if (descriptionLower.contains(entry.getKey())) {
+        return entry.getValue();
+      }
+    }
+
+    return null;
   }
 
   private int calculateInitialTroops(int playerCount) {
