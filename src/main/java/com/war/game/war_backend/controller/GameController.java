@@ -127,6 +127,21 @@ public class GameController {
     return ResponseEntity.ok(lobbyDtos);
   }
 
+  @GetMapping("/history")
+  @Operation(
+      summary = "Lista partidas finalizadas.",
+      description = "Retorna jogos com status 'FINISHED'.")
+  @SecurityRequirement(name = "bearerAuth")
+  @PreAuthorize("isAuthenticated()")
+  public ResponseEntity<List<GameStateResponseDto>> getFinishedGames() {
+    List<Game> finished = gameService.findFinishedGames();
+
+    List<GameStateResponseDto> dtos =
+        finished.stream().map(this::convertToGameStateDto).collect(Collectors.toList());
+
+    return ResponseEntity.ok(dtos);
+  }
+
   @GetMapping("/current-game")
   @Operation(
       summary = "Retorna o jogo/lobby ativo do jogador.",
