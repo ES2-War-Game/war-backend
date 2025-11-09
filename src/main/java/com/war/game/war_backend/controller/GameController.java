@@ -695,6 +695,34 @@ public class GameController {
       dto.setPlayer(playerDto);
     }
 
+    // Adiciona as cartas do jogador via service
+    List<com.war.game.war_backend.model.PlayerCard> playerCards = gameService.getPlayerCards(pg);
+    List<GameStateResponseDto.PlayerCardDto> cardDtos =
+        playerCards.stream()
+            .map(
+                pc -> {
+                  GameStateResponseDto.PlayerCardDto pcDto =
+                      new GameStateResponseDto.PlayerCardDto();
+                  pcDto.setId(pc.getId());
+                  if (pc.getCard() != null) {
+                    GameStateResponseDto.CardDto cardDto = new GameStateResponseDto.CardDto();
+                    cardDto.setId(pc.getCard().getId());
+                    cardDto.setType(pc.getCard().getType().name());
+                    if (pc.getCard().getTerritory() != null) {
+                      GameStateResponseDto.TerritoryDto terrDto =
+                          new GameStateResponseDto.TerritoryDto();
+                      terrDto.setId(pc.getCard().getTerritory().getId());
+                      terrDto.setName(pc.getCard().getTerritory().getName());
+                      terrDto.setContinent(pc.getCard().getTerritory().getContinent());
+                      cardDto.setTerritory(terrDto);
+                    }
+                    pcDto.setCard(cardDto);
+                  }
+                  return pcDto;
+                })
+            .collect(java.util.stream.Collectors.toList());
+    dto.setPlayerCards(cardDtos);
+
     return dto;
   }
 

@@ -34,6 +34,24 @@ public class GameStateResponseDto {
     private Boolean stillInGame;
     private ObjectiveDto objective;
     private PlayerDto player;
+    private List<PlayerCardDto> playerCards;
+  }
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class PlayerCardDto {
+    private Long id;
+    private CardDto card;
+  }
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class CardDto {
+    private Long id;
+    private String type;
+    private TerritoryDto territory;
   }
 
   @Data
