@@ -113,13 +113,36 @@ public class WinConditionService {
   private boolean checkEliminatePlayer(
       Game game, PlayerGame actingPlayerGame, Objective objective) {
     String description = objective.getDescription();
-    String targetColor = description.substring(description.lastIndexOf(" ") + 1).trim();
+    String targetColor = extractTargetColorFromObjective(description);
+
+    if (targetColor == null) return false;
 
     return game.getPlayerGames().stream()
         .filter(pg -> pg.getColor().equalsIgnoreCase(targetColor))
         .findFirst()
         .map(targetPlayerGame -> !targetPlayerGame.getStillInGame())
         .orElse(false);
+  }
+
+  private String extractTargetColorFromObjective(String description) {
+    if (description == null || description.isEmpty()) {
+      return null;
+    }
+    Map<String, String> colorMapping =
+        Map.of(
+            "verdes", "green",
+            "azuis", "blue",
+            "vermelhos", "red",
+            "amarelos", "#bfa640",
+            "pretos", "black",
+            "roxos", "purple");
+    String descriptionLower = description.toLowerCase();
+    for (Map.Entry<String, String> entry : colorMapping.entrySet()) {
+      if (descriptionLower.contains(entry.getKey())) {
+        return entry.getValue();
+      }
+    }
+    return null;
   }
 
   // Verifica se o jogador conquistou os continentes necessários (COMPLEXO)

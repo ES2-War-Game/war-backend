@@ -11,6 +11,9 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -39,8 +42,6 @@ import com.war.game.war_backend.repository.PlayerGameRepository;
 import com.war.game.war_backend.repository.TerritoryBorderRepository;
 import com.war.game.war_backend.repository.TerritoryRepository;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -1138,7 +1139,8 @@ public class GameService {
   }
 
   private void distributeObjectivesSmartly(List<PlayerGame> playerGames) {
-    List<Objective> allObjectives = objectiveRepository.findAll();
+    List<Objective> allObjectives = new ArrayList<>(objectiveRepository.findAll());
+    Collections.shuffle(allObjectives, random);
 
     Map<String, PlayerGame> colorToPlayerMap =
         playerGames.stream()
@@ -1146,41 +1148,27 @@ public class GameService {
                 Collectors.toMap(
                     PlayerGame::getColor, pg -> pg, (existing, replacement) -> existing));
 
-    List<Objective> eliminationObjectives =
-        allObjectives.stream()
-            .filter(obj -> "ELIMINATE_PLAYER".equals(obj.getType()))
-            .collect(Collectors.toList());
-
-    List<Objective> nonEliminationObjectives =
-        allObjectives.stream()
-            .filter(obj -> !"ELIMINATE_PLAYER".equals(obj.getType()))
-            .collect(Collectors.toList());
-
-    Collections.shuffle(eliminationObjectives, random);
-    Collections.shuffle(nonEliminationObjectives, random);
+    List<Objective> availableObjectives = new ArrayList<>(allObjectives);
 
     for (PlayerGame playerGame : playerGames) {
       Objective assignedObjective = null;
 
-      for (Objective eliminationObj : eliminationObjectives) {
-        if (isEliminationObjectiveValid(eliminationObj, playerGame, colorToPlayerMap)) {
-          assignedObjective = eliminationObj;
-          eliminationObjectives.remove(eliminationObj);
-          break;
-        }
-      }
+      // Filtra objetivos válidos para o jogador atual
+      List<Objective> validObjectives =
+          availableObjectives.stream()
+              .filter(
+                  obj ->
+                      !"ELIMINATE_PLAYER".equals(obj.getType())
+                          || isEliminationObjectiveValid(obj, playerGame, colorToPlayerMap))
+              .collect(Collectors.toList());
 
-      if (assignedObjective == null && !nonEliminationObjectives.isEmpty()) {
-        assignedObjective = nonEliminationObjectives.remove(0);
-      }
-
-      if (assignedObjective == null && !nonEliminationObjectives.isEmpty()) {
-        assignedObjective =
-            nonEliminationObjectives.get(random.nextInt(nonEliminationObjectives.size()));
-      }
-
-      if (assignedObjective == null && !allObjectives.isEmpty()) {
-        assignedObjective = allObjectives.get(random.nextInt(allObjectives.size()));
+      if (!validObjectives.isEmpty()) {
+        // Sorteia entre os válidos
+        assignedObjective = validObjectives.get(random.nextInt(validObjectives.size()));
+        availableObjectives.remove(assignedObjective);
+      } else if (!availableObjectives.isEmpty()) {
+        // Se não há válidos, pega qualquer um (garante que não trava)
+        assignedObjective = availableObjectives.remove(0);
       }
 
       playerGame.setObjective(assignedObjective);
@@ -1367,5 +1355,10 @@ public class GameService {
     return gameRepository
         .findById(gameId)
         .orElseThrow(() -> new RuntimeException("Partida com ID " + gameId + " não encontrada."));
+  }
+
+  @Transactional(readOnly = true)
+  public List<PlayerCard> getPlayerCards(PlayerGame pg) {
+    return playerCardRepository.findByPlayerGame(pg);
   }
 }
