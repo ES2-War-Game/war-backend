@@ -53,6 +53,7 @@ CREATE TABLE card (
     pk_id BIGSERIAL PRIMARY KEY,
     type VARCHAR(20) NOT NULL,
     territory_id BIGINT NULL,
+    image_name VARCHAR(100) NULL,
     CONSTRAINT fk_territory FOREIGN KEY (territory_id) REFERENCES territory(pk_id)
 );
 

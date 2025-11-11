@@ -708,6 +708,7 @@ public class GameController {
                     GameStateResponseDto.CardDto cardDto = new GameStateResponseDto.CardDto();
                     cardDto.setId(pc.getCard().getId());
                     cardDto.setType(pc.getCard().getType().name());
+                    cardDto.setImageName(pc.getCard().getImageName());
                     if (pc.getCard().getTerritory() != null) {
                       GameStateResponseDto.TerritoryDto terrDto =
                           new GameStateResponseDto.TerritoryDto();
