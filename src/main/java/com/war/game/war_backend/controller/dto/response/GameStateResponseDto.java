@@ -51,6 +51,7 @@ public class GameStateResponseDto {
   public static class CardDto {
     private Long id;
     private String type;
+    private String imageName;
     private TerritoryDto territory;
   }
 

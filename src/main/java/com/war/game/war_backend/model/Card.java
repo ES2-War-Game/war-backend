@@ -28,6 +28,9 @@ public class Card {
   @JoinColumn(name = "territory_id", referencedColumnName = "pk_id")
   private Territory territory;
 
+  @Column(name = "image_name", length = 100)
+  private String imageName;
+
   @Transient
   public String getTerritoryName() {
     return territory != null ? territory.getName() : null;
