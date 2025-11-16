@@ -57,10 +57,7 @@ class GameControllerAttackTest {
   void attackTerritory_WithValidData_ShouldReturnSuccess() throws Exception {
     // Arrange
     Long gameId = 1L;
-    AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(10L);
-    attackRequest.setTargetTerritoryId(11L);
-    attackRequest.setAttackDiceCount(3);
+    AttackRequestDto attackRequest = new AttackRequestDto(10L, 11L, 3);
 
     Game mockGame = new Game();
     mockGame.setId(gameId);
@@ -90,10 +87,7 @@ class GameControllerAttackTest {
   void attackTerritory_WithInvalidGamePhase_ShouldReturnBadRequest() throws Exception {
     // Arrange
     Long gameId = 1L;
-    AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(10L);
-    attackRequest.setTargetTerritoryId(11L);
-    attackRequest.setAttackDiceCount(3);
+    AttackRequestDto attackRequest = new AttackRequestDto(10L, 11L, 3);
 
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
         .thenThrow(new RuntimeException("Ação inválida. A partida não está na fase de Ataque."));
@@ -112,10 +106,7 @@ class GameControllerAttackTest {
   void attackTerritory_WithNotPlayerTurn_ShouldReturnBadRequest() throws Exception {
     // Arrange
     Long gameId = 1L;
-    AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(10L);
-    attackRequest.setTargetTerritoryId(11L);
-    attackRequest.setAttackDiceCount(3);
+    AttackRequestDto attackRequest = new AttackRequestDto(10L, 11L, 3);
 
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
         .thenThrow(new RuntimeException("Não é o seu turno para atacar."));
@@ -134,10 +125,7 @@ class GameControllerAttackTest {
   void attackTerritory_WithNonAdjacentTerritories_ShouldReturnBadRequest() throws Exception {
     // Arrange
     Long gameId = 1L;
-    AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(10L);
-    attackRequest.setTargetTerritoryId(11L);
-    attackRequest.setAttackDiceCount(3);
+    AttackRequestDto attackRequest = new AttackRequestDto(10L, 11L, 3);
 
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
         .thenThrow(
@@ -157,10 +145,7 @@ class GameControllerAttackTest {
   void attackTerritory_WithAttackingOwnTerritory_ShouldReturnBadRequest() throws Exception {
     // Arrange
     Long gameId = 1L;
-    AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(10L);
-    attackRequest.setTargetTerritoryId(11L);
-    attackRequest.setAttackDiceCount(3);
+    AttackRequestDto attackRequest = new AttackRequestDto(10L, 11L, 3);
 
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
         .thenThrow(new RuntimeException("Você não pode atacar seu próprio território."));
@@ -179,10 +164,7 @@ class GameControllerAttackTest {
   void attackTerritory_WithInsufficientArmies_ShouldReturnBadRequest() throws Exception {
     // Arrange
     Long gameId = 1L;
-    AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(10L);
-    attackRequest.setTargetTerritoryId(11L);
-    attackRequest.setAttackDiceCount(3);
+    AttackRequestDto attackRequest = new AttackRequestDto(10L, 11L, 3);
 
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
         .thenThrow(
@@ -203,10 +185,7 @@ class GameControllerAttackTest {
   void attackTerritory_WithTerritoryNotFound_ShouldReturnBadRequest() throws Exception {
     // Arrange
     Long gameId = 1L;
-    AttackRequestDto attackRequest = new AttackRequestDto();
-    attackRequest.setSourceTerritoryId(999L);
-    attackRequest.setTargetTerritoryId(11L);
-    attackRequest.setAttackDiceCount(3);
+    AttackRequestDto attackRequest = new AttackRequestDto(999L, 11L, 3);
 
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
         .thenThrow(new RuntimeException("Território atacante não encontrado."));

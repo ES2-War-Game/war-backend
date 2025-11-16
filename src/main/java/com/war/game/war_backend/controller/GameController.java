@@ -425,6 +425,115 @@ public class GameController {
     return ResponseEntity.ok(gameStateDto);
   }
 
+  // --- IA ---
+
+  @PostMapping("/add-bot/{lobbyId}")
+  @Operation(
+      summary = "Adiciona um BOT ao lobby.",
+      description =
+          "Permite ao dono do lobby adicionar um jogador AI disponível. Envia notificação WebSocket.")
+  @SecurityRequirement(name = "bearerAuth")
+  @PreAuthorize("isAuthenticated()")
+  public ResponseEntity<GameLobbyDetailsDto> addBotToLobby(
+      @Parameter(description = "ID da partida (lobby).") @PathVariable Long lobbyId,
+      @Parameter(description = "Username do BOT a ser adicionado (ex: 'GabrielBOT').") @RequestParam
+          String botUsername,
+      Principal principal) {
+
+    String initiatingUsername = principal.getName();
+
+    // O GameService deve validar se o initiatingUsername é o dono e se o botUsername é
+    // válido/disponível.
+    Game updatedLobby = gameService.addBotToLobby(lobbyId, initiatingUsername, botUsername);
+
+    // 3. CONVERSÃO DTO
+    List<PlayerLobbyDtoResponse> playerDtos =
+        updatedLobby.getPlayerGames().stream()
+            .map(
+                playerGame ->
+                    new PlayerLobbyDtoResponse(
+                        playerGame.getId(),
+                        playerGame.getPlayer().getUsername(),
+                        playerGame.getColor(),
+                        playerGame.getIsOwner(),
+                        playerGame.getPlayer().getImageUrl()))
+            .collect(Collectors.toList());
+
+    GameLobbyDetailsDto responseDto = new GameLobbyDetailsDto(updatedLobby, playerDtos);
+
+    // NOTIFICAÇÃO WEB SOCKET
+    messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId + "/state", playerDtos);
+
+    // Notifica sobre a atualização da lista global de lobbies
+    List<Game> allLobbies = gameService.findAllLobbies();
+    List<LobbyListResponseDto> lobbyListDtos =
+        allLobbies.stream()
+            .map(
+                lobby ->
+                    new LobbyListResponseDto(
+                        lobby.getId(),
+                        lobby.getName(),
+                        lobby.getStatus(),
+                        lobby.getPlayerGames().size()))
+            .collect(Collectors.toList());
+    messagingTemplate.convertAndSend("/topic/lobbies/list", lobbyListDtos);
+
+    return ResponseEntity.ok(responseDto);
+  }
+
+  @PostMapping("/remove-bot/{lobbyId}")
+  @Operation(
+      summary = "Remove um BOT do lobby.",
+      description = "Permite ao dono do lobby remover um jogador AI. Envia notificação WebSocket.")
+  @SecurityRequirement(name = "bearerAuth")
+  @PreAuthorize("isAuthenticated()")
+  public ResponseEntity<List<PlayerLobbyDtoResponse>> removeBotFromLobby(
+      @Parameter(description = "ID da partida (lobby).") @PathVariable Long lobbyId,
+      @Parameter(description = "Username do BOT a ser removido (ex: 'GabrielBOT').") @RequestParam
+          String botUsername,
+      Principal principal) {
+
+    // OBTENÇÃO E VALIDAÇÃO DO DONO
+    String initiatingUsername = principal.getName();
+
+    // O GameService deve validar se o initiatingUsername é o dono e se o botUsername pertence ao
+    // lobby.
+    Game updatedLobby = gameService.removeBotFromLobby(lobbyId, initiatingUsername, botUsername);
+
+    // CONVERSÃO DTO
+
+    List<PlayerLobbyDtoResponse> playerDtos =
+        updatedLobby.getPlayerGames().stream()
+            .map(
+                playerGame ->
+                    new PlayerLobbyDtoResponse(
+                        playerGame.getId(),
+                        playerGame.getPlayer().getUsername(),
+                        playerGame.getColor(),
+                        playerGame.getIsOwner(),
+                        playerGame.getPlayer().getImageUrl()))
+            .collect(Collectors.toList());
+
+    // NOTIFICAÇÃO WEB SOCKET
+    messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId + "/state", playerDtos);
+
+    // Notifica sobre a atualização da lista global de lobbies
+    List<Game> allLobbies = gameService.findAllLobbies();
+    List<LobbyListResponseDto> lobbyListDtos =
+        allLobbies.stream()
+            .map(
+                lobby ->
+                    new LobbyListResponseDto(
+                        lobby.getId(),
+                        lobby.getName(),
+                        lobby.getStatus(),
+                        lobby.getPlayerGames().size()))
+            .collect(Collectors.toList());
+    messagingTemplate.convertAndSend("/topic/lobbies/list", lobbyListDtos);
+
+    return ResponseEntity.ok(playerDtos);
+  }
+
   // --- GAMEPLAY MANAGEMENT ---
 
   @PostMapping("/start/{lobbyId}")

@@ -2,11 +2,13 @@ package com.war.game.war_backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 
 @SpringBootApplication
+@EnableAsync
 @SecurityScheme(
     name = "bearerAuth",
     type = SecuritySchemeType.HTTP,
