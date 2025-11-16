@@ -4,6 +4,7 @@ CREATE TABLE player (
     username VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
+    type VARCHAR(10) NOT NULL DEFAULT 'HUMAN',
     image_url VARCHAR(255) NULL
 );
 
@@ -129,3 +130,21 @@ CREATE TABLE troop_movement (
     CONSTRAINT fk_game_troop FOREIGN KEY (game_id) REFERENCES game(pk_id),
     CONSTRAINT fk_player_game_troop FOREIGN KEY (player_game_id) REFERENCES player_game(pk_id)
 );
+
+--INICIALIZANDO OS BOTS
+
+INSERT INTO player (username, email, password_hash, type) VALUES 
+('GabrielBOT', 'gabriel.bot@war.com', '$2a$10$C8.q9A1X9pQ4z6n.v3A6W.F7d4vBf3eP2vV8e/jM.n2', 'AI_EASY'),
+('LucasBOT', 'lucas.bot@war.com', '$2a$10$C8.q9A1X9pQ4z6n.v3A6W.F7d4vBf3eP2vV8e/jM.n2', 'AI_EASY'),
+('PedroBOT', 'pedro.bot@war.com', '$2a$10$C8.q9A1X9pQ4z6n.v3A6W.F7d4vBf3eP2vV8e/jM.n2', 'AI_EASY');
+
+INSERT INTO player (username, email, password_hash, type) VALUES 
+('SofiaBOT', 'sofia.bot@war.com', '$2a$10$C8.q9A1X9pQ4z6n.v3A6W.F7d4vBf3eP2vV8e/jM.n2', 'AI_EASY'),
+('JuliaBOT', 'julia.bot@war.com', '$2a$10$C8.q9A1X9pQ4z6n.v3A6W.F7d4vBf3eP2vV8e/jM.n2', 'AI_EASY'),
+('LauraBOT', 'laura.bot@war.com', '$2a$10$C8.q9A1X9pQ4z6n.v3A6W.F7d4vBf3eP2vV8e/jM.n2', 'AI_EASY');
+
+-- Insere todas as IAs na role 'ROLE_USER' (Assumindo que IAs devem ter a mesma role base)
+INSERT INTO player_role (player_id, role_id)
+SELECT pk_id, (SELECT pk_id FROM role WHERE name = 'ROLE_USER')
+FROM player
+WHERE username LIKE '%BOT';
