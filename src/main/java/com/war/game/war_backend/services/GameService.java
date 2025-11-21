@@ -695,16 +695,14 @@ public class GameService {
     game.setTurnPlayer(firstPlayer);
 
     if (firstPlayer.getPlayer().getType() != PlayerType.HUMAN) {
+      System.out.println("Iniciando alocação inicial começando pela IA");
       Game savedGame = gameRepository.save(game);
-
       // Dispara o turno da IA assíncronamente
-      eventPublisher.publishEvent(
-          new AITurnInitiationEvent(
-              this, savedGame.getId(), firstPlayer.getPlayer().getUsername()));
-
-      return savedGame;
+      Game finalState =
+          this.executeAIAction(savedGame.getId(), firstPlayer.getPlayer().getUsername());
+      return finalState;
     }
-
+    System.out.println("Não foi pela IA");
     return gameRepository.save(game);
   }
 
@@ -745,8 +743,10 @@ public class GameService {
       throw new RuntimeException("Quantidade de tropas inválida ou superior à sua reserva.");
     }
 
-    // Validação de Turno (apenas para a fase de reforço)
-    if (GameStatus.REINFORCEMENT.name().equals(currentStatus)
+    // Validação de turno
+    if ((GameStatus.REINFORCEMENT.name().equals(currentStatus) 
+          || GameStatus.SETUP_ALLOCATION.name().equals(currentStatus))
+        && game.getTurnPlayer() != null
         && !game.getTurnPlayer().getId().equals(currentPlayerGame.getId())) {
       throw new RuntimeException("Não é a sua vez de alocar tropas.");
     }
@@ -822,9 +822,38 @@ public class GameService {
 
           game.setTurnPlayer(firstTurnPlayer); // Garante que o turno é dele
 
+          // Checa se o primeiro jogador é IA
+          if (firstTurnPlayer.getPlayer().getType() != PlayerType.HUMAN) {
+
+            Game savedGame = gameRepository.save(game);
+
+            System.out.println(
+                "IA - Chamando para o primeiro turno da partida de ("
+                    + firstTurnPlayer.getPlayer().getUsername()
+                    + ")");
+
+            Game finalState =
+                this.executeAIAction(savedGame.getId(), firstTurnPlayer.getPlayer().getUsername());
+
+            return finalState; // Retorna o jogo APÓS a IA finalizar o turno
+          }
         } else {
           // Passa para o próximo jogador que ainda precisa alocar
-          game.setTurnPlayer(remainingAllocators.get(0));
+          PlayerGame nextPlayerGame = remainingAllocators.get(0);
+          game.setTurnPlayer(nextPlayerGame);
+
+          if (nextPlayerGame.getPlayer().getType() != PlayerType.HUMAN) {
+            Game savedGame = gameRepository.save(game);
+            playerGameRepository.save(currentPlayerGame);
+            System.out.println(
+                "GameService - Disparando turno da IA no meio do setup inicial: "
+                    + nextPlayerGame.getPlayer().getUsername());
+
+            // Chama a ação da IA
+            Game finalState =
+                this.executeAIAction(savedGame.getId(), nextPlayerGame.getPlayer().getUsername());
+            return finalState;
+          }
         }
 
       } else if (GameStatus.REINFORCEMENT.name().equals(currentStatus)) {
@@ -891,9 +920,14 @@ public class GameService {
 
     String currentStatus = game.getStatus();
 
+    if (GameStatus.SETUP_ALLOCATION.name().equals(currentStatus)) {
+      // Bloqueia tentativas de encerrar o turno durante a alocação inicial.
+      throw new RuntimeException(
+        "Não é possível encerrar o turno na fase de Alocação Inicial.");
+    }
+
     // Checamos se o status é um dos que permite o avanço de turno
     if (GameStatus.LOBBY.name().equals(currentStatus)
-        || GameStatus.SETUP_ALLOCATION.name().equals(currentStatus)
         || GameStatus.FINISHED.name().equals(currentStatus)
         || GameStatus.CANCELED.name().equals(currentStatus)) {
 
@@ -908,6 +942,9 @@ public class GameService {
     if (!currentPlayerGame.getPlayer().getUsername().equals(initiatingUsername)) {
       throw new RuntimeException("Você não tem permissão para encerrar o turno de outro jogador.");
     }
+
+    boolean isCurrentPlayerAI =
+        currentPlayerGame.getPlayer().getType() != PlayerType.HUMAN; // Vê se é IA
 
     // --- LÓGICA DE TRANSIÇÃO DE FASES ---
 
@@ -924,9 +961,23 @@ public class GameService {
 
       game.setStatus(GameStatus.ATTACK.name());
 
+      // Transição de fase da IA
+      if (isCurrentPlayerAI) {
+        System.out.println("IA - Chamando ação da IA");
+        Game savedGame = gameRepository.save(game);
+        return this.executeAIAction(savedGame.getId(), initiatingUsername);
+      }
+
     } else if (GameStatus.ATTACK.name().equals(currentStatus)) {
       // Se estiver em Ataque, o 'endTurn' avança para Movimentação.
       game.setStatus(GameStatus.MOVEMENT.name());
+
+      // Transição de fase da IA
+      if (isCurrentPlayerAI) {
+        System.out.println("IA - Chamando ação da IA");
+        Game savedGame = gameRepository.save(game);
+        return this.executeAIAction(savedGame.getId(), initiatingUsername);
+      }
 
     } else if (GameStatus.MOVEMENT.name().equals(currentStatus)) {
 
@@ -992,11 +1043,10 @@ public class GameService {
         Game savedGame = gameRepository.save(game);
 
         // Dispara o turno da IA assíncronamente
-        eventPublisher.publishEvent(
-            new AITurnInitiationEvent(
-                this, savedGame.getId(), nextPlayerGame.getPlayer().getUsername()));
-
-        return savedGame;
+        System.out.println("IA - Chamando ação da IA");
+        Game finalState =
+            this.executeAIAction(savedGame.getId(), nextPlayerGame.getPlayer().getUsername());
+        return finalState;
       }
 
       playerGameRepository.save(currentPlayerGame);
@@ -1593,5 +1643,626 @@ public class GameService {
   @Transactional(readOnly = true)
   public List<PlayerCard> getPlayerCards(PlayerGame pg) {
     return playerCardRepository.findByPlayerGame(pg);
+  }
+
+  // IA =======================================
+
+  @Transactional
+  public Game addBotToLobby(Long lobbyId, String ownerUsername, String botUsername) {
+    // 1. Carregar e Validar o Lobby
+    Game game =
+        gameRepository
+            .findById(lobbyId)
+            .orElseThrow(() -> new RuntimeException("Lobby não encontrado."));
+
+    if (!GameStatus.LOBBY.name().equals(game.getStatus())) {
+      throw new RuntimeException(
+          "Não é possível adicionar jogadores, o jogo não está mais em fase de Lobby.");
+    }
+
+    // 2. Validar Permissão (Dono do Lobby)
+    Player ownerPlayer = playerService.getPlayerByUsername(ownerUsername);
+    boolean isOwner =
+        game.getPlayerGames().stream()
+            .filter(pg -> pg.getPlayer().equals(ownerPlayer))
+            .anyMatch(PlayerGame::getIsOwner);
+
+    if (!isOwner) {
+      throw new RuntimeException("Apenas o dono do lobby pode adicionar um BOT.");
+    }
+
+    Set<PlayerGame> currentPlayers = game.getPlayerGames();
+
+    // 3. Validar Limite de Jogadores
+    if (currentPlayers.size() >= GameConstants.MAX_PLAYERS) {
+      throw new RuntimeException(
+          "O lobby atingiu o número máximo de jogadores (" + GameConstants.MAX_PLAYERS + ").");
+    }
+
+    // 4. Buscar e Validar o BOT
+    Player botPlayer =
+        playerRepository
+            .findByUsername(botUsername)
+            .orElseThrow(
+                () -> new RuntimeException("BOT não encontrado com o username: " + botUsername));
+
+    if (botPlayer.getType() == PlayerType.HUMAN) {
+      throw new RuntimeException(
+          "O usuário " + botUsername + " não é um BOT e deve entrar usando o endpoint /join.");
+    }
+
+    // 5. Verificar se o BOT já está na partida
+    boolean botAlreadyInGame =
+        currentPlayers.stream().anyMatch(pg -> pg.getPlayer().equals(botPlayer));
+
+    if (botAlreadyInGame) {
+      throw new RuntimeException("O BOT já está neste lobby.");
+    }
+
+    // Para atribuição de cor
+
+    Set<String> usedColors =
+        currentPlayers.stream()
+            .map(PlayerGame::getColor)
+            .filter(java.util.Objects::nonNull)
+            .collect(Collectors.toSet());
+
+    String assignedColor =
+        GameConstants.AVAILABLE_COLORS.stream()
+            .filter(color -> !usedColors.contains(color))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Erro interno: Nenhuma cor disponível."));
+
+    // 6. Criar e Adicionar PlayerGame para o BOT
+    PlayerGame botPlayerGame = new PlayerGame();
+    botPlayerGame.setGame(game);
+    botPlayerGame.setPlayer(botPlayer);
+    botPlayerGame.setUsername(botUsername);
+    botPlayerGame.setIsOwner(false);
+    botPlayerGame.setStillInGame(true);
+
+    // 7. Atribuição de cor
+    botPlayerGame.setColor(assignedColor);
+    botPlayerGame.setImageUrl(botPlayer.getImageUrl());
+
+    playerGameRepository.save(botPlayerGame);
+
+    game.getPlayerGames().add(botPlayerGame);
+
+    return gameRepository.save(game);
+  }
+
+  // Remove um BOT de um lobby existente.
+  @Transactional
+  public Game removeBotFromLobby(Long lobbyId, String ownerUsername, String botUsername) {
+    // 1. Carregar e Validar o Lobby
+    Game game =
+        gameRepository
+            .findById(lobbyId)
+            .orElseThrow(() -> new RuntimeException("Lobby não encontrado."));
+
+    if (!GameStatus.LOBBY.name().equals(game.getStatus())) {
+      throw new RuntimeException(
+          "Não é possível remover jogadores, o jogo não está mais em fase de Lobby.");
+    }
+
+    // 2. Validar Permissão (Dono do Lobby)
+    Player ownerPlayer = playerService.getPlayerByUsername(ownerUsername);
+    boolean isOwner =
+        game.getPlayerGames().stream()
+            .filter(pg -> pg.getPlayer().equals(ownerPlayer))
+            .anyMatch(PlayerGame::getIsOwner);
+
+    if (!isOwner) {
+      throw new RuntimeException("Apenas o dono do lobby pode remover um BOT.");
+    }
+
+    // 3. Buscar o PlayerGame do BOT
+    PlayerGame botPg =
+        game.getPlayerGames().stream()
+            .filter(pg -> pg.getUsername().equals(botUsername))
+            .findFirst()
+            .orElseThrow(
+                () -> new RuntimeException("O BOT " + botUsername + " não está neste lobby."));
+
+    // 4. Confirma se o alvo da remoção é de fato um BOT
+    if (botPg.getPlayer().getType() == PlayerType.HUMAN) {
+      throw new RuntimeException(
+          "Não é possível remover jogadores HUMANOS por este endpoint. Use /leave.");
+    }
+
+    // 5. Remover o BOT
+    game.getPlayerGames().remove(botPg);
+    playerGameRepository.delete(botPg);
+
+    return gameRepository.save(game);
+  }
+
+  // Decide a ação da IA baseada na fase.
+  @Transactional
+  public Game executeAIAction(Long gameId, String aiUsername) {
+    Game game =
+        gameRepository
+            .findById(gameId)
+            .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
+
+    GameStatus status;
+    try {
+      status = GameStatus.valueOf(game.getStatus());
+    } catch (IllegalArgumentException e) {
+      System.err.println("IA - Status de jogo inválido: " + game.getStatus());
+      return game;
+    }
+
+    System.out.println("======= IA - Iniciando ação =======");
+
+    switch (status) {
+      case SETUP_ALLOCATION:
+      case REINFORCEMENT:
+        System.out.println("IA - Fase de alocação inicial ou reforço");
+        return handleAICardTradePhase(game, aiUsername);
+
+      case ATTACK:
+        System.out.println("IA - Fase de ataque");
+        return handleAIAttackPhase(game, aiUsername);
+
+      case MOVEMENT:
+        System.out.println("IA - Fase de movimentação");
+        return handleAIMovementPhase(game, aiUsername);
+
+      default:
+        System.err.println("IA - Fase inesperada (Enum): " + status);
+        return game;
+    }
+  }
+
+  // Alocação
+  private Game handleAIReinforceAndSetupPhase(Game game, String aiUsername) {
+
+    // Carregar Dados
+    final Player aiPlayer =
+        game.getPlayers().stream()
+            .filter(p -> p.getUsername().equals(aiUsername))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Jogador IA não encontrado."));
+
+    PlayerGame aiPlayerGame =
+        playerGameRepository
+            .findByGameAndPlayer(game, aiPlayer)
+            .orElseThrow(() -> new RuntimeException("PlayerGame da IA não encontrado."));
+
+    // --- LOOP SÍNCRONO DE ALOCAÇÃO ---
+
+    while (true) {
+      if (aiPlayerGame.getUnallocatedArmies() <= 0) {
+        break;
+      }
+      
+      System.out.println("IA - Alocando tropa. Restantes: " + aiPlayerGame.getUnallocatedArmies());
+
+      final PlayerGame currentPlayerGame = aiPlayerGame;
+
+      // Obter Territórios e Estratégia
+      Set<GameTerritory> aiTerritories =
+          game.getGameTerritories().stream()
+              .filter(gt -> gt.getOwner() != null && gt.getOwner().equals(currentPlayerGame))
+              .collect(Collectors.toSet());
+
+      GameTerritory bestTarget = findMostVulnerableTerritory(aiTerritories);
+
+      // Fallback: Se não houver fronteira pegue qualquer um.
+      if (bestTarget == null) {
+        bestTarget = aiTerritories.stream().findAny().orElse(null);
+        if (bestTarget == null) {
+          System.err.println("IA não tem territórios para alocar. Saindo do loop.");
+          break; // Sai do loop para a transição de fase/turno.
+        }
+      }
+
+      // Execução da Ação
+      try {
+        Long territoryId = bestTarget.getTerritory().getId();
+        int troopsToAllocate = 1;
+
+        System.out.println("IA - ALOCANDO 1 tropa em: " + bestTarget.getTerritory().getName());
+
+        game = this.allocateTroops(game.getId(), aiUsername, territoryId, troopsToAllocate);
+      } catch (Exception e) {
+        System.err.println("Erro na alocação da IA. Parando: " + e.getMessage());
+        break;
+      }
+
+      aiPlayerGame =
+          playerGameRepository
+              .findByGameAndPlayer(game, aiPlayer)
+              .orElseThrow(
+                  () -> new RuntimeException("PlayerGame da IA não encontrado após alocação."));
+    }
+
+    // Se a fase for REINFORCEMENT e zerou as tropas, passamos para ATTACK
+    if (GameStatus.ATTACK.name().equals(game.getStatus())) {
+      System.out.println("======= IA - Ação de reforço encerrada =======");
+      return this.executeAIAction(game.getId(), aiUsername);
+    }
+
+    return game;
+  }
+
+  private GameTerritory findMostVulnerableTerritory(Set<GameTerritory> aiTerritories) {
+
+    GameTerritory mostVulnerable = null;
+    double highestVulnerabilityScore = -1.0;
+
+    for (GameTerritory gt : aiTerritories) {
+      // Encontrar o número de vizinhos inimigos
+      long enemyNeighbors =
+          gt.getTerritory().getNeighborTerritories().stream()
+              .map(
+                  neighborTerritory ->
+                      gt.getGame().getGameTerritories().stream()
+                          .filter(
+                              gtN -> gtN.getTerritory().getId().equals(neighborTerritory.getId()))
+                          .findFirst()
+                          .orElse(null))
+              .filter(
+                  gtNeighbor ->
+                      gtNeighbor != null
+                          && gtNeighbor.getOwner() != null
+                          && !gtNeighbor.getOwner().equals(gt.getOwner()))
+              .count();
+
+      if (enemyNeighbors == 0) continue; // Não é fronteira
+
+      // Cálculo do Score de Vulnerabilidade (quanto maior, mais tropas são necessárias) Score =
+      // (Total de Vizinhos Inimigos) / (Tropas Próprias)
+      double currentVulnerabilityScore = (double) enemyNeighbors / gt.getStaticArmies();
+
+      if (currentVulnerabilityScore > highestVulnerabilityScore) {
+        highestVulnerabilityScore = currentVulnerabilityScore;
+        mostVulnerable = gt;
+      }
+    }
+
+    return mostVulnerable;
+  }
+
+  // Ataque
+  private Game handleAIAttackPhase(Game game, String aiUsername) {
+    // Carregar Dados
+    final Player aiPlayer =
+        game.getPlayers().stream()
+            .filter(p -> p.getUsername().equals(aiUsername))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Jogador IA não encontrado."));
+
+    PlayerGame aiPlayerGame =
+        playerGameRepository
+            .findByGameAndPlayer(game, aiPlayer)
+            .orElseThrow(() -> new RuntimeException("PlayerGame da IA não encontrado."));
+
+    // --- LOOP SÍNCRONO DE ATAQUE ---
+    boolean continueAttacking = true;
+
+    while (continueAttacking) {
+
+      // DECISÃO DE ATAQUE
+      AttackDecision decision = findBestAttack(game, aiPlayerGame);
+
+      if (decision == null) {
+        System.out.println("IA - Não há mais ataques bons. Passando a fase de ATAQUE.");
+        continueAttacking = false;
+        break;
+      }
+
+      // Execução da Ação
+      try {
+        Long sourceTerritoryId = decision.fromTerritoryId();
+        Long targetTerritoryId = decision.toTerritoryId();
+        int numDice = decision.numDice();
+
+        System.out.println(
+            "IA - ATACANDO "
+                + targetTerritoryId
+                + " de "
+                + sourceTerritoryId
+                + " com "
+                + numDice
+                + " dados.");
+
+        // Chama método de ataque
+        this.executeAIAttack(
+            game.getId(), aiUsername, sourceTerritoryId, targetTerritoryId, numDice);
+
+        game =
+            gameRepository
+                .findById(game.getId())
+                .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
+      } catch (RuntimeException e) {
+        System.err.println("IA falhou ao executar o ataque. Parando: " + e.getMessage());
+        continueAttacking = false;
+      }
+    }
+
+    return this.startNextTurn(game.getId(), aiUsername);
+  }
+
+  private AttackDecision findBestAttack(Game game, PlayerGame aiPlayerGame) {
+
+    // Obter todos os territórios da IA que podem atacar (têm > 1 exército)
+    Set<GameTerritory> attackSources =
+        game.getGameTerritories().stream()
+            .filter(gt -> gt.getOwner() != null && gt.getOwner().equals(aiPlayerGame))
+            .filter(gt -> gt.getStaticArmies() > 1)
+            .collect(Collectors.toSet());
+
+    AttackDecision bestDecision = null;
+    double highestScore = 0.0;
+
+    // Iterar sobre todos os territórios de origem
+    for (GameTerritory source : attackSources) {
+
+      // Iterar sobre todos os vizinhos inimigos
+      Set<GameTerritory> enemyNeighbors = findEnemyNeighbors(game, source, aiPlayerGame);
+
+      for (GameTerritory target : enemyNeighbors) {
+
+        // Calcular os Dados e o Score
+        int attackingArmies = source.getStaticArmies() - 1;
+        int defendingArmies = target.getStaticArmies();
+
+        int numDice = Math.min(3, attackingArmies);
+
+        double currentScore = (double) attackingArmies / defendingArmies;
+
+        if (defendingArmies == 1) {
+          currentScore *= 2.0;
+        }
+
+        if (currentScore > highestScore && currentScore >= 1.5) {
+          highestScore = currentScore;
+          bestDecision =
+              new AttackDecision(
+                  source.getTerritory().getId(), target.getTerritory().getId(), numDice);
+        }
+      }
+    }
+
+    return bestDecision;
+  }
+
+  private Set<GameTerritory> findEnemyNeighbors(
+      Game game, GameTerritory source, PlayerGame aiPlayerGame) {
+    return source.getTerritory().getNeighborTerritories().stream()
+        .map(
+            neighborTerritory ->
+                game.getGameTerritories().stream()
+                    .filter(gtN -> gtN.getTerritory().getId().equals(neighborTerritory.getId()))
+                    .findFirst()
+                    .orElse(null))
+        .filter(
+            gtNeighbor ->
+                gtNeighbor != null
+                    && gtNeighbor.getOwner() != null
+                    && !gtNeighbor.getOwner().equals(aiPlayerGame))
+        .collect(Collectors.toSet());
+  }
+
+  private Game executeAIAttack(
+      Long gameId,
+      String aiUsername,
+      Long sourceTerritoryId,
+      Long targetTerritoryId,
+      int attackDiceCount) {
+    AttackRequestDto dto =
+        new AttackRequestDto(sourceTerritoryId, targetTerritoryId, attackDiceCount);
+
+    return this.attackTerritory(gameId, aiUsername, dto);
+  }
+
+  private record AttackDecision(Long fromTerritoryId, Long toTerritoryId, int numDice) {}
+
+  // Movimentação
+  private Game handleAIMovementPhase(Game game, String aiUsername) {
+    // Carregar Jogador
+    final Player aiPlayer =
+        game.getPlayers().stream()
+            .filter(p -> p.getUsername().equals(aiUsername))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Jogador IA não encontrado."));
+
+    PlayerGame aiPlayerGame =
+        playerGameRepository
+            .findByGameAndPlayer(game, aiPlayer)
+            .orElseThrow(() -> new RuntimeException("PlayerGame da IA não encontrado."));
+
+    // Obter Territórios da IA (necessário para as estratégias)
+    Set<GameTerritory> aiTerritories =
+        game.getGameTerritories().stream()
+            .filter(gt -> gt.getOwner() != null && gt.getOwner().equals(aiPlayerGame))
+            .collect(Collectors.toSet());
+
+    // Decisão Estratégica
+    GameTerritory source = findBestFortificationSource(aiTerritories, aiPlayerGame);
+    GameTerritory target = findBestFortificationTarget(aiTerritories, aiPlayerGame);
+
+    // Calcular Quantidade e Validar Condições
+    int troopsToMove = 0;
+    boolean moveExecuted = false;
+
+    if (source != null && target != null && !source.getId().equals(target.getId())) {
+
+      // Validação de Vizinhança
+      boolean isAdjacent =
+          territoryBorderRepository
+              .findByTerritoryIds(source.getTerritory().getId(), target.getTerritory().getId())
+              .isPresent();
+
+      if (isAdjacent) {
+        // Lógica de Cálculo de Tropas
+        troopsToMove = source.getStaticArmies() / 2;
+        int maxMoveable = source.getStaticArmies() - 1;
+        troopsToMove = Math.min(troopsToMove, maxMoveable);
+      }
+    }
+
+    // Execução
+    if (troopsToMove >= 1) {
+      try {
+        Long sourceTerritoryId = source.getTerritory().getId();
+        Long targetTerritoryId = target.getTerritory().getId();
+
+        System.out.println(
+            "IA - FORTIFICANDO: "
+                + troopsToMove
+                + " de "
+                + source.getTerritory().getName()
+                + " para "
+                + target.getTerritory().getName());
+
+        this.executeAIMovement(
+            game.getId(), aiUsername, sourceTerritoryId, targetTerritoryId, troopsToMove);
+        moveExecuted = true;
+
+      } catch (Exception e) {
+        System.err.println("IA falhou ao executar a fortificação: " + e.getMessage());
+      }
+    }
+
+    // Fim do Turno
+    System.out.println("IA - Fim do Turno. Passando para o próximo jogador.");
+
+    return this.startNextTurn(game.getId(), aiUsername);
+  }
+
+  private GameTerritory findBestFortificationSource(
+      Set<GameTerritory> aiTerritories, PlayerGame aiPlayerGame) {
+    // Filtra por territórios internos (que não fazem fronteira com o inimigo)
+    // Ordena pelo maior número de tropas.
+    return aiTerritories.stream()
+        .filter(gt -> isBorderTerritory(gt, aiPlayerGame.getId(), gt.getGame()) == false)
+        .max(Comparator.comparing(GameTerritory::getStaticArmies))
+        .orElse(null);
+  }
+
+  private GameTerritory findBestFortificationTarget(
+      Set<GameTerritory> aiTerritories, PlayerGame aiPlayerGame) {
+    // Filtra por territórios que são fronteira com o inimigo.
+    // Ordena pelo menor número de tropas.
+    return aiTerritories.stream()
+        .filter(gt -> isBorderTerritory(gt, aiPlayerGame.getId(), gt.getGame()))
+        .min(Comparator.comparing(GameTerritory::getStaticArmies))
+        .orElse(null);
+  }
+
+  private boolean isBorderTerritory(GameTerritory gt, Long aiPlayerGameId, Game game) {
+    return gt.getTerritory().getNeighborTerritories().stream()
+        .map(
+            neighborTerritory ->
+                game.getGameTerritories().stream()
+                    .filter(gtN -> gtN.getTerritory().getId().equals(neighborTerritory.getId()))
+                    .findFirst()
+                    .orElse(null))
+        .filter(gtNeighbor -> gtNeighbor != null && gtNeighbor.getOwner() != null)
+        .anyMatch(gtNeighbor -> !gtNeighbor.getOwner().getId().equals(aiPlayerGameId));
+  }
+
+  private Game executeAIMovement(
+      Long gameId,
+      String aiUsername,
+      Long sourceTerritoryId,
+      Long targetTerritoryId,
+      int troopsToMove) {
+    return this.moveTroops(gameId, aiUsername, sourceTerritoryId, targetTerritoryId, troopsToMove);
+  }
+
+  // Cartas
+  private Game handleAICardTradePhase(Game game, String aiUsername) {
+
+    // Carregar Jogador e Cartas
+    final Player aiPlayer =
+        game.getPlayers().stream()
+            .filter(p -> p.getUsername().equals(aiUsername))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Jogador IA não encontrado."));
+
+    PlayerGame aiPlayerGame =
+        playerGameRepository
+            .findByGameAndPlayer(game, aiPlayer)
+            .orElseThrow(() -> new RuntimeException("PlayerGame da IA não encontrado."));
+
+    Set<PlayerCard> playerCards = aiPlayerGame.getPlayerCards();
+
+    // Condição de Saída
+    if (playerCards == null || playerCards.size() < 3) {
+      System.out.println("IA - Sem cartas suficientes para trocar. Iniciando Reforço.");
+      return handleAIReinforceAndSetupPhase(game, aiUsername);
+    }
+
+    // DECISÃO DE TROCA
+    List<Long> cardIdsToTrade = findBestCardSet(playerCards);
+
+    // Execução
+    if (cardIdsToTrade.size() == 3) {
+      try {
+        System.out.println("IA - Trocando um conjunto de cartas.");
+
+        game = this.executeAICardTrade(game.getId(), aiUsername, cardIdsToTrade);
+
+        // Se a IA fez a troca e ainda tem 5+ cartas, ela deve tentar trocar novamente.
+        aiPlayerGame =
+            playerGameRepository
+                .findByGameAndPlayer(game, aiPlayer)
+                .orElseThrow(
+                    () -> new RuntimeException("PlayerGame da IA não encontrado após troca."));
+
+        if (aiPlayerGame.getPlayerCards().size() >= 5) {
+          return handleAICardTradePhase(game, aiUsername);
+        }
+
+      } catch (RuntimeException e) {
+        System.err.println("IA falhou ao executar a troca de cartas: " + e.getMessage());
+      }
+    } else {
+      System.out.println("IA - Não encontrou um conjunto de cartas trocável. Iniciando Reforço.");
+    }
+
+    // Transição para a Fase de Reforço
+    return handleAIReinforceAndSetupPhase(game, aiUsername);
+  }
+
+  private List<Long> findBestCardSet(Set<PlayerCard> playerCards) {
+    if (playerCards.size() < 3) {
+      return List.of();
+    }
+
+    // Agrupa as cartas por tipo
+    Map<CardType, List<PlayerCard>> cardsByType =
+        playerCards.stream().collect(Collectors.groupingBy(pc -> pc.getCard().getType()));
+
+    // Tenta encontrar 3 cartas do mesmo tipo
+    for (Map.Entry<CardType, List<PlayerCard>> entry : cardsByType.entrySet()) {
+      if (entry.getValue().size() >= 3) {
+        return entry.getValue().stream()
+            .limit(3)
+            .map(PlayerCard::getId)
+            .collect(Collectors.toList());
+      }
+    }
+
+    // Tenta encontrar 3 cartas de tipos diferentes
+    List<PlayerCard> infantry = cardsByType.getOrDefault(CardType.INFANTRY, List.of());
+    List<PlayerCard> cavalry = cardsByType.getOrDefault(CardType.CAVALRY, List.of());
+    List<PlayerCard> artillery = cardsByType.getOrDefault(CardType.CANNON, List.of());
+
+    if (infantry.size() >= 1 && cavalry.size() >= 1 && artillery.size() >= 1) {
+      // Encontrou 1 de cada.
+      return List.of(infantry.get(0).getId(), cavalry.get(0).getId(), artillery.get(0).getId());
+    }
+
+    return List.of();
+  }
+
+  private Game executeAICardTrade(Long gameId, String aiUsername, List<Long> cardIds) {
+    return this.tradeCardsForReinforcements(gameId, aiUsername, cardIds);
   }
 }
