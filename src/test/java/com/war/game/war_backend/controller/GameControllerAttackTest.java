@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.security.Principal;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.HashSet;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
 import com.war.game.war_backend.model.Game;
 import com.war.game.war_backend.services.GameService;
+import com.war.game.war_backend.services.GameService.AttackResult;
 import com.war.game.war_backend.services.PlayerService;
 
 class GameControllerAttackTest {
@@ -68,8 +70,11 @@ class GameControllerAttackTest {
     mockGame.setPlayerGames(new HashSet<>());
     mockGame.setGameTerritories(new HashSet<>());
 
+    AttackResult mockAttackResult =
+        new AttackResult(Arrays.asList(6, 5, 4), Arrays.asList(3, 2, 1), mockGame);
+
     when(gameService.attackTerritory(anyLong(), anyString(), any(AttackRequestDto.class)))
-        .thenReturn(mockGame);
+        .thenReturn(mockAttackResult);
 
     // Act & Assert
     mockMvc
@@ -79,8 +84,10 @@ class GameControllerAttackTest {
                 .content(objectMapper.writeValueAsString(attackRequest))
                 .principal(principal))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.id").value(gameId))
-        .andExpect(jsonPath("$.status").value("In Game - Attack"));
+        .andExpect(jsonPath("$.attackerDice").isArray())
+        .andExpect(jsonPath("$.defenderDice").isArray())
+        .andExpect(jsonPath("$.gameState.id").value(gameId))
+        .andExpect(jsonPath("$.gameState.status").value("In Game - Attack"));
   }
 
   @Test
