@@ -14,15 +14,18 @@ import java.util.stream.Collectors;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
-import com.war.game.war_backend.events.AIActionExecutedEvent;
-import com.war.game.war_backend.events.AIActionIntentEvent;
+import com.war.game.war_backend.controller.dto.response.GameStateResponseDto;
+import com.war.game.war_backend.events.AIActionRequestedEvent;
 import com.war.game.war_backend.events.GameOverEvent;
 import com.war.game.war_backend.exceptions.InvalidGamePhaseException;
 import com.war.game.war_backend.model.AITurnAction;
@@ -67,7 +70,7 @@ public class GameService {
   private final WinConditionService winConditionService;
   private final PlayerRepository playerRepository;
 
-  private final ApplicationEventPublisher eventPublisher;
+  @Autowired private final ApplicationEventPublisher eventPublisher;
 
   private final SimpMessagingTemplate messagingTemplate;
   private final PlayerService playerService;
@@ -419,9 +422,15 @@ public class GameService {
               .orElseThrow(() -> new RuntimeException("Erro ao determinar vencedor."));
 
       // Dispara evento de vitória por eliminação
-      winConditionService.checkWinConditions(game, winner);
+      if(winConditionService.checkWinConditions(game, winner)){
+        System.out.println("Vitória por eliminação.");
+      }
     }
 
+    game = gameRepository
+            .findById(game.getId())
+            .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
+    
     return game;
   }
 
@@ -573,32 +582,21 @@ public class GameService {
     game.setTurnPlayer(firstPlayer);
 
     if (firstPlayer.getPlayer().getType() != PlayerType.HUMAN) {
-      System.out.println("Iniciando alocação inicial começando pela IA");
       Game savedGame = gameRepository.save(game);
       // Dispara o turno da IA assíncronamente
-      Game finalState =
-          this.executeAIAction(savedGame.getId(), firstPlayer.getPlayer().getUsername());
-      return finalState;
+      return this.executeAIAction(savedGame.getId(), firstPlayer.getPlayer().getUsername());
     }
-    System.out.println("Não foi pela IA");
     return gameRepository.save(game);
   }
 
   @Transactional // A mesma para alocação inicial e de reforço
   public Game allocateTroops(Long gameId, String username, Long territoryId, Integer count) {
-    System.out.println("\n=== INÍCIO ALOCAÇÃO DE TROPAS ===");
-    System.out.println("GameId: " + gameId);
-    System.out.println("Username: " + username);
-    System.out.println("TerritoryId (recebido): " + territoryId);
-    System.out.println("Count: " + count);
-
     Game game =
         gameRepository
             .findById(gameId)
             .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
 
     String currentStatus = game.getStatus();
-    System.out.println("Game Status: " + currentStatus);
 
     if (!GameStatus.SETUP_ALLOCATION.name().equals(currentStatus)
         && !GameStatus.REINFORCEMENT.name().equals(currentStatus)) {
@@ -614,7 +612,16 @@ public class GameService {
             .findByGameAndPlayer(game, player)
             .orElseThrow(() -> new RuntimeException("Jogador não está na partida."));
 
-    System.out.println("CurrentPlayerGame ID: " + currentPlayerGame.getId());
+    /*
+    for (PlayerGame playerGame : game.getPlayerGames()){
+      if(winConditionService.checkWinConditions(game, playerGame)){
+        game.setStatus(GameStatus.FINISHED.name());
+        return game;
+      }
+    }
+    */
+
+    System.out.println(username + " esta alocando " + count + " tropas em "  + territoryId);
 
     // Validação de tropas e count
     if (currentPlayerGame.getUnallocatedArmies() < count || count <= 0) {
@@ -634,7 +641,7 @@ public class GameService {
         gameTerritoryRepository
             .findByGameAndTerritoryId(game, territoryId)
             .orElseThrow(() -> new RuntimeException("Território não encontrado nesta partida."));
-
+    /* 
     System.out.println("\n--- VALIDAÇÃO DE POSSE (ALOCAÇÃO) ---");
     System.out.println("GameTerritory encontrado:");
     System.out.println("  - GameTerritory ID: " + gameTerritory.getId());
@@ -645,7 +652,7 @@ public class GameService {
     System.out.println("CurrentPlayerGame ID: " + currentPlayerGame.getId());
     System.out.println(
         "IDs iguais? " + gameTerritory.getOwner().getId().equals(currentPlayerGame.getId()));
-
+    */
     // Validação de Posse - Compara IDs ao invés de objetos
     if (!gameTerritory.getOwner().getId().equals(currentPlayerGame.getId())) {
       System.out.println(
@@ -705,15 +712,7 @@ public class GameService {
 
             Game savedGame = gameRepository.save(game);
 
-            System.out.println(
-                "IA - Chamando para o primeiro turno da partida de ("
-                    + firstTurnPlayer.getPlayer().getUsername()
-                    + ")");
-
-            Game finalState =
-                this.executeAIAction(savedGame.getId(), firstTurnPlayer.getPlayer().getUsername());
-
-            return finalState; // Retorna o jogo APÓS a IA finalizar o turno
+            return this.executeAIAction(savedGame.getId(), firstTurnPlayer.getPlayer().getUsername());
           }
         } else {
           // Passa para o próximo jogador que ainda precisa alocar
@@ -723,9 +722,6 @@ public class GameService {
           if (nextPlayerGame.getPlayer().getType() != PlayerType.HUMAN) {
             Game savedGame = gameRepository.save(game);
             playerGameRepository.save(currentPlayerGame);
-            System.out.println(
-                "GameService - Disparando turno da IA no meio do setup inicial: "
-                    + nextPlayerGame.getPlayer().getUsername());
 
             // Chama a ação da IA
             Game finalState =
@@ -797,6 +793,11 @@ public class GameService {
             .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
 
     String currentStatus = game.getStatus();
+    
+    if (GameStatus.SETUP_ALLOCATION.name().equals(currentStatus)) {
+      // Bloqueia tentativas de encerrar o turno durante a alocação inicial.
+      throw new RuntimeException("Não é possível encerrar o turno na fase de Alocação Inicial.");
+    }
 
     if (GameStatus.SETUP_ALLOCATION.name().equals(currentStatus)) {
       // Bloqueia tentativas de encerrar o turno durante a alocação inicial.
@@ -840,8 +841,8 @@ public class GameService {
 
       // Transição de fase da IA
       if (isCurrentPlayerAI) {
-        System.out.println("IA - Chamando ação da IA");
         Game savedGame = gameRepository.save(game);
+
         return this.executeAIAction(savedGame.getId(), initiatingUsername);
       }
 
@@ -851,8 +852,8 @@ public class GameService {
 
       // Transição de fase da IA
       if (isCurrentPlayerAI) {
-        System.out.println("IA - Chamando ação da IA");
         Game savedGame = gameRepository.save(game);
+
         return this.executeAIAction(savedGame.getId(), initiatingUsername);
       }
 
@@ -883,15 +884,14 @@ public class GameService {
       // 4. Buscar os jogadores ativos, ordenados por turnOrder
       List<PlayerGame> activePlayers =
           playerGameRepository.findByGame(game).stream()
-              .filter(PlayerGame::getStillInGame) // <--- FILTRO CRUCIAL
+              .filter(PlayerGame::getStillInGame)
               .sorted(Comparator.comparing(PlayerGame::getTurnOrder))
               .collect(Collectors.toList());
 
       if (activePlayers.size() <= 1) {
         PlayerGame winner = activePlayers.stream().findFirst().orElse(null);
         if (winner != null) {
-          throw new RuntimeException(
-              "Tentativa de avanço de turno com jogo já finalizado ou com um único jogador ativo.");
+          return game;
         }
         throw new RuntimeException("Erro de estado do jogo. Nenhum jogador ativo para avançar.");
       }
@@ -920,10 +920,9 @@ public class GameService {
         Game savedGame = gameRepository.save(game);
 
         // Dispara o turno da IA assíncronamente
-        System.out.println("IA - Chamando ação da IA");
-        Game finalState =
-            this.executeAIAction(savedGame.getId(), nextPlayerGame.getPlayer().getUsername());
-        return finalState;
+        eventPublisher.publishEvent(
+            new AIActionRequestedEvent(
+                savedGame.getId(), nextPlayerGame.getPlayer().getUsername()));
       }
 
       playerGameRepository.save(currentPlayerGame);
@@ -1132,10 +1131,22 @@ public class GameService {
 
       currentPlayerGame.setConqueredTerritoryThisTurn(true);
 
+      gameTerritoryRepository.save(targetTerritory);
+      gameTerritoryRepository.save(sourceTerritory);
+      playerGameRepository.save(currentPlayerGame);
+
+      gameTerritoryRepository.flush();
+      playerGameRepository.flush();
+
+      entityManager.refresh(currentPlayerGame);
+
+      // Checa fim de jogo e elimina jogadores sem território
       checkGameOver(game, defenderPlayerGame);
 
-      if (!GameStatus.FINISHED.name().equals(game.getStatus())) {
-        winConditionService.checkObjectiveCompletion(game, currentPlayerGame);
+      if(winConditionService.checkWinConditions(game, currentPlayerGame)){
+        System.out.println("Iniciando fim de jogo...");
+        game.setStatus(GameStatus.FINISHED.name());
+        return game;
       }
     }
 
@@ -1258,20 +1269,30 @@ public class GameService {
 
       defeatedPlayer.setStillInGame(false);
       playerGameRepository.save(defeatedPlayer);
-
-      winConditionService.checkWinConditions(game, attackerPlayer);
     }
   }
 
-  @EventListener
-  @Transactional
+  @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   public void endGameListener(GameOverEvent event) {
     Game game = event.getGame();
     PlayerGame winner = event.getWinner();
 
-    game.setStatus(GameStatus.FINISHED.name());
-    game.setWinner(winner);
-    gameRepository.save(game);
+    Game gameToUpdate = gameRepository.findById(game.getId())
+      .orElse(null);
+    if (gameToUpdate == null) return;
+
+    gameToUpdate.setStatus(GameStatus.FINISHED.name());
+    gameToUpdate.setWinner(winner);
+    Game finishedGame = gameRepository.save(gameToUpdate);
+
+    GameStateResponseDto gameState = this.convertToGameStateDto(finishedGame);
+
+    messagingTemplate.convertAndSend(
+        "/topic/game/" + finishedGame.getId() + "/state", 
+        gameState
+    );
+
+    System.out.println("EVENTO DE FIM DE JOGO - " + finishedGame.getStatus());
   }
 
   // AUXILIARES ==================================
@@ -1657,8 +1678,15 @@ public class GameService {
   }
 
   // Decide a ação da IA baseada na fase.
-  @Transactional
+
   public Game executeAIAction(Long gameId, String aiUsername) {
+    try {
+      Thread.sleep(700);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return gameRepository.findById(gameId).orElse(null);
+    }
+
     Game game =
         gameRepository
             .findById(gameId)
@@ -1692,6 +1720,8 @@ public class GameService {
         System.err.println("IA - Fase inesperada (Enum): " + status);
         return game;
     }
+
+    
   }
 
   // Alocação
@@ -1742,8 +1772,6 @@ public class GameService {
         Long territoryId = bestTarget.getTerritory().getId();
         int troopsToAllocate = 1;
 
-        System.out.println("IA - ALOCANDO 1 tropa em: " + bestTarget.getTerritory().getName());
-
         game = this.allocateTroops(game.getId(), aiUsername, territoryId, troopsToAllocate);
       } catch (Exception e) {
         System.err.println("Erro na alocação da IA. Parando: " + e.getMessage());
@@ -1759,7 +1787,6 @@ public class GameService {
 
     // Se a fase for REINFORCEMENT e zerou as tropas, passamos para ATTACK
     if (GameStatus.ATTACK.name().equals(game.getStatus())) {
-      System.out.println("======= IA - Ação de reforço encerrada =======");
       return this.executeAIAction(game.getId(), aiUsername);
     }
 
@@ -1848,13 +1875,18 @@ public class GameService {
                 + " dados.");
 
         // Chama método de ataque
-        this.executeAIAttack(
+        Game gameEnded = this.executeAIAttack(
             game.getId(), aiUsername, sourceTerritoryId, targetTerritoryId, numDice);
 
         game =
             gameRepository
                 .findById(game.getId())
                 .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
+        
+        if (GameStatus.FINISHED.name().equals(gameEnded.getStatus())) {
+             System.out.println("IA - Jogo Vencido. ABORTANDO TURNO.");
+             return gameEnded;
+        }
       } catch (RuntimeException e) {
         System.err.println("IA falhou ao executar o ataque. Parando: " + e.getMessage());
         continueAttacking = false;
@@ -1925,7 +1957,7 @@ public class GameService {
         .collect(Collectors.toSet());
   }
 
-  private AttackResult executeAIAttack(
+  private Game executeAIAttack(
       Long gameId,
       String aiUsername,
       Long sourceTerritoryId,
@@ -2098,7 +2130,7 @@ public class GameService {
         }
 
       } catch (RuntimeException e) {
-        System.err.println("IA falhou ao executar a troca de cartas: " + e.getMessage());
+        System.out.println("IA falhou ao executar a troca de cartas: " + e.getMessage());
       }
     } else {
       System.out.println("IA - Não encontrou um conjunto de cartas trocável. Iniciando Reforço.");
@@ -2143,4 +2175,125 @@ public class GameService {
   private Game executeAICardTrade(Long gameId, String aiUsername, List<Long> cardIds) {
     return this.tradeCardsForReinforcements(gameId, aiUsername, cardIds);
   }
+
+  // Para fazer o DTO da mensagem do websocket
+
+  private GameStateResponseDto convertToGameStateDto(Game game) {
+    GameStateResponseDto dto = new GameStateResponseDto();
+    dto.setId(game.getId());
+    dto.setStatus(game.getStatus());
+    dto.setCreatedAt(game.getCreatedAt());
+    dto.setName(game.getName());
+    dto.setCardSetExchangeCount(game.getCardSetExchangeCount());
+
+    // Converter turnPlayer
+    if (game.getTurnPlayer() != null) {
+      dto.setTurnPlayer(convertToPlayerGameDto(game.getTurnPlayer()));
+    }
+
+    // Converter winner
+    if (game.getWinner() != null) {
+      dto.setWinner(convertToPlayerGameDto(game.getWinner()));
+    }
+
+    // Converter playerGames
+    if (game.getPlayerGames() != null) {
+      dto.setPlayerGames(
+          game.getPlayerGames().stream()
+              .map(this::convertToPlayerGameDto)
+              .collect(Collectors.toList()));
+    }
+
+    // Converter gameTerritories
+    if (game.getGameTerritories() != null) {
+      dto.setGameTerritories(
+          game.getGameTerritories().stream()
+              .map(this::convertToGameTerritoryDto)
+              .collect(Collectors.toList()));
+    }
+
+    return dto;
+  }
+
+  private GameStateResponseDto.PlayerGameDto convertToPlayerGameDto(
+      com.war.game.war_backend.model.PlayerGame pg) {
+    GameStateResponseDto.PlayerGameDto dto = new GameStateResponseDto.PlayerGameDto();
+    dto.setId(pg.getId());
+    dto.setTurnOrder(pg.getTurnOrder());
+    dto.setColor(pg.getColor());
+    dto.setIsOwner(pg.getIsOwner());
+    dto.setUnallocatedArmies(pg.getUnallocatedArmies());
+    dto.setConqueredTerritoryThisTurn(pg.getConqueredTerritoryThisTurn());
+    dto.setStillInGame(pg.getStillInGame());
+
+    if (pg.getObjective() != null) {
+      GameStateResponseDto.ObjectiveDto objDto = new GameStateResponseDto.ObjectiveDto();
+      objDto.setId(pg.getObjective().getId());
+      objDto.setDescription(pg.getObjective().getDescription());
+      objDto.setType(pg.getObjective().getType());
+      dto.setObjective(objDto);
+    }
+
+    if (pg.getPlayer() != null) {
+      GameStateResponseDto.PlayerDto playerDto = new GameStateResponseDto.PlayerDto();
+      playerDto.setId(pg.getPlayer().getId());
+      playerDto.setUsername(pg.getPlayer().getUsername());
+      playerDto.setImageUrl(pg.getPlayer().getImageUrl());
+      dto.setPlayer(playerDto);
+    }
+
+    List<com.war.game.war_backend.model.PlayerCard> playerCards = this.getPlayerCards(pg);
+    List<GameStateResponseDto.PlayerCardDto> cardDtos =
+        playerCards.stream()
+            .map(
+                pc -> {
+                  GameStateResponseDto.PlayerCardDto pcDto =
+                      new GameStateResponseDto.PlayerCardDto();
+                  pcDto.setId(pc.getId());
+                  if (pc.getCard() != null) {
+                    GameStateResponseDto.CardDto cardDto = new GameStateResponseDto.CardDto();
+                    cardDto.setId(pc.getCard().getId());
+                    cardDto.setType(pc.getCard().getType().name());
+                    cardDto.setImageName(pc.getCard().getImageName());
+                    if (pc.getCard().getTerritory() != null) {
+                      GameStateResponseDto.TerritoryDto terrDto =
+                          new GameStateResponseDto.TerritoryDto();
+                      terrDto.setId(pc.getCard().getTerritory().getId());
+                      terrDto.setName(pc.getCard().getTerritory().getName());
+                      terrDto.setContinent(pc.getCard().getTerritory().getContinent());
+                      cardDto.setTerritory(terrDto);
+                    }
+                    pcDto.setCard(cardDto);
+                  }
+                  return pcDto;
+                })
+            .collect(java.util.stream.Collectors.toList());
+    dto.setPlayerCards(cardDtos);
+
+    return dto;
+  }
+
+  private GameStateResponseDto.GameTerritoryDto convertToGameTerritoryDto(
+      com.war.game.war_backend.model.GameTerritory gt) {
+    GameStateResponseDto.GameTerritoryDto dto = new GameStateResponseDto.GameTerritoryDto();
+    dto.setId(gt.getTerritory() != null ? gt.getTerritory().getId() : null);
+    dto.setStaticArmies(gt.getStaticArmies());
+    dto.setMovedInArmies(gt.getMovedInArmies());
+    dto.setUnallocatedArmies(gt.getUnallocatedArmies());
+
+    if (gt.getOwner() != null) {
+      dto.setOwnerId(gt.getOwner().getId());
+    }
+
+    if (gt.getTerritory() != null) {
+      GameStateResponseDto.TerritoryDto terrDto = new GameStateResponseDto.TerritoryDto();
+      terrDto.setId(gt.getTerritory().getId());
+      terrDto.setName(gt.getTerritory().getName());
+      terrDto.setContinent(gt.getTerritory().getContinent());
+      dto.setTerritory(terrDto);
+    }
+
+    return dto;
+  }
+
 }

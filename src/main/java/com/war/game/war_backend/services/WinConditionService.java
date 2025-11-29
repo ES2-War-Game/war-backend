@@ -12,6 +12,7 @@ import com.war.game.war_backend.events.GameOverEvent;
 import com.war.game.war_backend.model.Game;
 import com.war.game.war_backend.model.Objective;
 import com.war.game.war_backend.model.PlayerGame;
+import com.war.game.war_backend.model.enums.GameStatus;
 
 @Service
 public class WinConditionService {
@@ -33,15 +34,15 @@ public class WinConditionService {
   }
 
   @Transactional
-  public void checkWinConditions(Game game, PlayerGame actingPlayerGame) {
+  public boolean checkWinConditions(Game game, PlayerGame actingPlayerGame) {
 
     // Verificar Condição Padrão: Sobrevivência
     if (checkEliminationWin(game)) {
-      return;
+      return true;
     }
 
     // Verificar o Objetivo Secreto
-    checkObjectiveCompletion(game, actingPlayerGame);
+    return checkObjectiveCompletion(game, actingPlayerGame);
   }
 
   // Lógica de Verificação de Sobrevivência
@@ -51,6 +52,9 @@ public class WinConditionService {
     if (activePlayers == 1) {
       PlayerGame winner =
           game.getPlayerGames().stream().filter(PlayerGame::getStillInGame).findFirst().get();
+
+      game.setStatus(GameStatus.FINISHED.name());
+      game.setWinner(winner);
 
       eventPublisher.publishEvent(
           new GameOverEvent(
@@ -72,14 +76,20 @@ public class WinConditionService {
 
     switch (objective.getType()) {
       case "CONQUER_CONTINENT":
+        System.out.println("Checando conquista de continente...");
         completed = checkConquerContinent(playerGame, objective);
+        System.out.println("resultado: " + completed);
         break;
       case "CONQUER_TERRITORIES":
+        System.out.println("Checando conquista de território...");
         completed = checkConquerTerritories(playerGame, objective);
+        System.out.println("resultado: " + completed);
         break;
       case "ELIMINATE_PLAYER":
+        System.out.println("Checando Eliminação de player...");
         completed =
-            checkEliminatePlayer(game, playerGame, objective) && !playerGame.getStillInGame();
+            checkEliminatePlayer(game, playerGame, objective) && playerGame.getStillInGame();
+        System.out.println("resultado: " + completed);
         break;
     }
 
@@ -169,7 +179,11 @@ public class WinConditionService {
       }
     }
 
+    System.out.println("Continentes obrigatórios conquistados: " + successfullyConquered);
+
     if (description.contains("e mais um continente")) {
+      boolean requiredAreConquered = successfullyConquered == requiredContinents.size();
+
       long totalContinentsControlled =
           ownedTerritoriesPerContinent.keySet().stream()
               .filter(
@@ -179,8 +193,10 @@ public class WinConditionService {
                               .equals(CONTINENT_TERRITORY_COUNT.getOrDefault(continent, 0L))
                           && CONTINENT_TERRITORY_COUNT.getOrDefault(continent, 0L) > 0)
               .count();
+      
+      System.out.println("Continentes conquistados: " + totalContinentsControlled);
 
-      return totalContinentsControlled >= 3;
+      return requiredAreConquered && totalContinentsControlled >= requiredContinents.size() + 1;
     }
 
     return successfullyConquered == requiredContinents.size();
