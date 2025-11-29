@@ -26,6 +26,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
 import com.war.game.war_backend.controller.dto.response.GameStateResponseDto;
 import com.war.game.war_backend.events.AIActionRequestedEvent;
+import com.war.game.war_backend.events.AIActionIntentEvent;
+import com.war.game.war_backend.events.AIActionExecutedEvent;
 import com.war.game.war_backend.events.GameOverEvent;
 import com.war.game.war_backend.exceptions.InvalidGamePhaseException;
 import com.war.game.war_backend.model.AITurnAction;
@@ -1146,7 +1148,7 @@ public class GameService {
       if(winConditionService.checkWinConditions(game, currentPlayerGame)){
         System.out.println("Iniciando fim de jogo...");
         game.setStatus(GameStatus.FINISHED.name());
-        return game;
+        return new AttackResult(attackRolls, defenseRolls, game);
       }
     }
 
@@ -1966,7 +1968,8 @@ public class GameService {
     AttackRequestDto dto =
         new AttackRequestDto(sourceTerritoryId, targetTerritoryId, attackDiceCount);
 
-    return this.attackTerritory(gameId, aiUsername, dto);
+    AttackResult result = this.attackTerritory(gameId, aiUsername, dto);
+    return result.game;
   }
 
   private record AttackDecision(Long fromTerritoryId, Long toTerritoryId, int numDice) {}
@@ -1994,10 +1997,8 @@ public class GameService {
     // Decisão Estratégica
     GameTerritory source = findBestFortificationSource(aiTerritories, aiPlayerGame);
     GameTerritory target = findBestFortificationTarget(aiTerritories, aiPlayerGame);
-
     // Calcular Quantidade e Validar Condições
     int troopsToMove = 0;
-    boolean moveExecuted = false;
 
     if (source != null && target != null && !source.getId().equals(target.getId())) {
 
@@ -2031,7 +2032,6 @@ public class GameService {
 
         this.executeAIMovement(
             game.getId(), aiUsername, sourceTerritoryId, targetTerritoryId, troopsToMove);
-        moveExecuted = true;
 
       } catch (Exception e) {
         System.err.println("IA falhou ao executar a fortificação: " + e.getMessage());
