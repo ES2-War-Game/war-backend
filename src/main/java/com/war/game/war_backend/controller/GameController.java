@@ -839,14 +839,11 @@ public class GameController {
   private GameStateResponseDto.GameTerritoryDto convertToGameTerritoryDto(
       com.war.game.war_backend.model.GameTerritory gt) {
     GameStateResponseDto.GameTerritoryDto dto = new GameStateResponseDto.GameTerritoryDto();
-    // ✅ CRITICAL FIX: Send Territory.id instead of GameTerritory.id
-    // The frontend needs the Territory.id to match attack validation
     dto.setId(gt.getTerritory() != null ? gt.getTerritory().getId() : null);
     dto.setStaticArmies(gt.getStaticArmies());
     dto.setMovedInArmies(gt.getMovedInArmies());
     dto.setUnallocatedArmies(gt.getUnallocatedArmies());
 
-    // Apenas o ID do owner, não o objeto completo
     if (gt.getOwner() != null) {
       dto.setOwnerId(gt.getOwner().getId());
     }
