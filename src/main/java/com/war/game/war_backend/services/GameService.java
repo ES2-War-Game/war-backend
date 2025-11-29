@@ -28,6 +28,7 @@ import com.war.game.war_backend.controller.dto.response.GameStateResponseDto;
 import com.war.game.war_backend.events.AIActionRequestedEvent;
 import com.war.game.war_backend.events.GameOverEvent;
 import com.war.game.war_backend.exceptions.InvalidGamePhaseException;
+import com.war.game.war_backend.model.AITurnAction;
 import com.war.game.war_backend.model.Card;
 import com.war.game.war_backend.model.Game;
 import com.war.game.war_backend.model.GameTerritory;
@@ -433,6 +434,85 @@ public class GameService {
     return game;
   }
 
+  public static class AttackResult {
+    public final List<Integer> attackerDice;
+    public final List<Integer> defenderDice;
+    public final Game game;
+
+    public AttackResult(List<Integer> attackerDice, List<Integer> defenderDice, Game game) {
+      this.attackerDice = attackerDice;
+      this.defenderDice = defenderDice;
+      this.game = game;
+    }
+  }
+
+  // Ouve as intenções de ação da IA (GameService é o Executor).
+  @EventListener
+  public void handleAIActionIntent(AIActionIntentEvent event) {
+    Long gameId = event.getGameId();
+    String aiUsername = event.getAiUsername();
+    AITurnAction action = event.getAction();
+
+    boolean turnIsFinished = false;
+
+    System.out.println("GameService - Recebida INTENÇÃO de ação da IA: " + action.getType());
+
+    try {
+      // Executa a lógica de jogo com base na intenção da IA
+      switch (action.getType()) {
+        case CARD_TRADE:
+          this.tradeCardsForReinforcements(gameId, aiUsername, action.getCardIds());
+          break;
+        case REINFORCE_ALLOCATION:
+          this.allocateTroops(
+              gameId,
+              aiUsername,
+              Long.valueOf(action.getTargetTerritoryId()),
+              action.getNumberOfArmies());
+          break;
+        case ATTACK:
+          this.attackTerritory(
+              gameId,
+              aiUsername,
+              new AttackRequestDto(
+                  Long.valueOf(action.getSourceTerritoryId()),
+                  Long.valueOf(action.getTargetTerritoryId()),
+                  action.getNumberOfArmies()));
+          break;
+        case FORTIFY:
+          this.moveTroops(
+              gameId,
+              aiUsername,
+              Long.valueOf(action.getSourceTerritoryId()),
+              Long.valueOf(action.getTargetTerritoryId()),
+              action.getNumberOfArmies());
+          break;
+        case PASS_PHASE:
+          this.startNextTurn(gameId, aiUsername);
+          break;
+        case PASS_TURN:
+          this.startNextTurn(gameId, aiUsername);
+          turnIsFinished = true;
+          break;
+        default:
+          System.err.println(
+              "GameService: Tipo de ação da IA não reconhecido: " + action.getType());
+      }
+
+    } catch (Exception e) {
+      System.err.println(
+          "GameService - Erro ao executar ação da IA: "
+              + action.getType()
+              + " - "
+              + e.getMessage());
+      // Lógica de tratamento de erro: talvez publicar um evento de erro
+    } finally {
+      // Publica o feedback de execução de volta para a IA
+      eventPublisher.publishEvent(
+          new AIActionExecutedEvent(this, gameId, aiUsername, action.getType(), turnIsFinished));
+    }
+  }
+
   // EM JOGO =====================================
 
   @Transactional
@@ -719,6 +799,11 @@ public class GameService {
       throw new RuntimeException("Não é possível encerrar o turno na fase de Alocação Inicial.");
     }
 
+    if (GameStatus.SETUP_ALLOCATION.name().equals(currentStatus)) {
+      // Bloqueia tentativas de encerrar o turno durante a alocação inicial.
+      throw new RuntimeException("Não é possível encerrar o turno na fase de Alocação Inicial.");
+    }
+
     // Checamos se o status é um dos que permite o avanço de turno
     if (GameStatus.LOBBY.name().equals(currentStatus)
         || GameStatus.FINISHED.name().equals(currentStatus)
@@ -911,7 +996,8 @@ public class GameService {
   }
 
   @Transactional
-  public Game attackTerritory(Long gameId, String initiatingUsername, AttackRequestDto dto) {
+  public AttackResult attackTerritory(
+      Long gameId, String initiatingUsername, AttackRequestDto dto) {
     Game game =
         gameRepository
             .findById(gameId)
@@ -1068,7 +1154,7 @@ public class GameService {
     gameTerritoryRepository.save(sourceTerritory);
     playerGameRepository.save(currentPlayerGame);
 
-    return game;
+    return new AttackResult(attackRolls, defenseRolls, game);
   }
 
   @Transactional

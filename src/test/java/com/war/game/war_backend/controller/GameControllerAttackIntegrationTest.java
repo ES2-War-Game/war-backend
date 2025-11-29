@@ -193,8 +193,10 @@ class GameControllerAttackIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(attackRequest)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.id").value(testGame.getId()))
-        .andExpect(jsonPath("$.status").value("ATTACK"));
+        .andExpect(jsonPath("$.attackerDice").exists())
+        .andExpect(jsonPath("$.defenderDice").exists())
+        .andExpect(jsonPath("$.gameState.id").value(testGame.getId()))
+        .andExpect(jsonPath("$.gameState.status").value("ATTACK"));
   }
 
   @Test

@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
 import com.war.game.war_backend.controller.dto.request.LobbyCreationRequestDto;
+import com.war.game.war_backend.controller.dto.response.AttackResponseDto;
 import com.war.game.war_backend.controller.dto.response.CurrentTurnInfoDto;
 import com.war.game.war_backend.controller.dto.response.GameLobbyDetailsDto;
 import com.war.game.war_backend.controller.dto.response.GameStateResponseDto;
@@ -31,6 +32,7 @@ import com.war.game.war_backend.model.Player;
 import com.war.game.war_backend.model.PlayerGame;
 import com.war.game.war_backend.model.enums.GameStatus;
 import com.war.game.war_backend.services.GameService;
+import com.war.game.war_backend.services.GameService.AttackResult;
 import com.war.game.war_backend.services.PlayerService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -677,11 +679,14 @@ public class GameController {
     String username = principal.getName();
 
     try {
-      Game updatedGame = gameService.attackTerritory(gameId, username, attackRequest);
-      GameStateResponseDto gameState = convertToGameStateDto(updatedGame);
+      AttackResult attackResult = gameService.attackTerritory(gameId, username, attackRequest);
+      GameStateResponseDto gameState = convertToGameStateDto(attackResult.game);
+
+      AttackResponseDto response =
+          new AttackResponseDto(attackResult.attackerDice, attackResult.defenderDice, gameState);
 
       messagingTemplate.convertAndSend("/topic/game/" + gameId + "/state", gameState);
-      return ResponseEntity.ok(gameState);
+      return ResponseEntity.ok(response);
 
     } catch (InvalidGamePhaseException e) {
       return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
