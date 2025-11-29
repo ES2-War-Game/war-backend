@@ -20,14 +20,11 @@ RUN chmod +x ./mvnw && \
 
 COPY src src
 
-ARG SKIP_TESTS=false
+# Force skipping tests during image build to avoid requiring a Docker engine
+ARG SKIP_TESTS=true
 
-RUN if [ "$SKIP_TESTS" = "true" ] ; then \
-      echo "Building without tests..." && ./mvnw clean package -Dmaven.test.skip=true ; \
-    else \
-      echo "Building with tests..." && ./mvnw clean package ; \
-    fi
-
+RUN echo "SKIP_TESTS=${SKIP_TESTS}" && \
+    ./mvnw -B -DskipTests=true -Dmaven.test.skip=true -DskipITs=true clean package
 
 FROM eclipse-temurin:17-jre-alpine
 
