@@ -42,7 +42,8 @@ public class SecurityConfig {
     configuration.setAllowedOrigins(
         Arrays.asList(
             "http://localhost:5173",
-            "http://localhost:3000")); // Mais permissivo para desenvolvimento
+            "http://localhost:3000",
+          "https://war-frontend-two.vercel.app")); // Mais permissivo para desenvolvimento
     configuration.setAllowedMethods(
         Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
     configuration.setAllowedHeaders(Arrays.asList("*"));
