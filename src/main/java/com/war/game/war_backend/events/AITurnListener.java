@@ -30,18 +30,15 @@ public class AITurnListener {
     System.out.println("========== LISTENER: Turno da IA iniciado.==========");
 
     Game finalGame = gameService.executeAIAction(event.getGameId(), event.getUsername());
-    
+
     GameStateResponseDto gameState = convertToGameStateDto(finalGame);
 
     if (!GameStatus.FINISHED.name().equals(finalGame.getStatus())) {
-      messagingTemplate.convertAndSend(
-        "/topic/game/" + finalGame.getId() + "/state", 
-        gameState
-      );
+      messagingTemplate.convertAndSend("/topic/game/" + finalGame.getId() + "/state", gameState);
     } else {
       System.out.println("Jogo encerrado");
     }
-    
+
     System.out.println("========== LISTENER: Ação da IA concluída. ==========");
   }
 

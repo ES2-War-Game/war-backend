@@ -25,9 +25,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.war.game.war_backend.controller.dto.request.AttackRequestDto;
 import com.war.game.war_backend.controller.dto.response.GameStateResponseDto;
-import com.war.game.war_backend.events.AIActionRequestedEvent;
-import com.war.game.war_backend.events.AIActionIntentEvent;
 import com.war.game.war_backend.events.AIActionExecutedEvent;
+import com.war.game.war_backend.events.AIActionIntentEvent;
+import com.war.game.war_backend.events.AIActionRequestedEvent;
 import com.war.game.war_backend.events.GameOverEvent;
 import com.war.game.war_backend.exceptions.InvalidGamePhaseException;
 import com.war.game.war_backend.model.AITurnAction;
@@ -424,15 +424,16 @@ public class GameService {
               .orElseThrow(() -> new RuntimeException("Erro ao determinar vencedor."));
 
       // Dispara evento de vitória por eliminação
-      if(winConditionService.checkWinConditions(game, winner)){
+      if (winConditionService.checkWinConditions(game, winner)) {
         System.out.println("Vitória por eliminação.");
       }
     }
 
-    game = gameRepository
+    game =
+        gameRepository
             .findById(game.getId())
             .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
-    
+
     return game;
   }
 
@@ -623,7 +624,7 @@ public class GameService {
     }
     */
 
-    System.out.println(username + " esta alocando " + count + " tropas em "  + territoryId);
+    System.out.println(username + " esta alocando " + count + " tropas em " + territoryId);
 
     // Validação de tropas e count
     if (currentPlayerGame.getUnallocatedArmies() < count || count <= 0) {
@@ -643,7 +644,7 @@ public class GameService {
         gameTerritoryRepository
             .findByGameAndTerritoryId(game, territoryId)
             .orElseThrow(() -> new RuntimeException("Território não encontrado nesta partida."));
-    /* 
+    /*
     System.out.println("\n--- VALIDAÇÃO DE POSSE (ALOCAÇÃO) ---");
     System.out.println("GameTerritory encontrado:");
     System.out.println("  - GameTerritory ID: " + gameTerritory.getId());
@@ -714,7 +715,8 @@ public class GameService {
 
             Game savedGame = gameRepository.save(game);
 
-            return this.executeAIAction(savedGame.getId(), firstTurnPlayer.getPlayer().getUsername());
+            return this.executeAIAction(
+                savedGame.getId(), firstTurnPlayer.getPlayer().getUsername());
           }
         } else {
           // Passa para o próximo jogador que ainda precisa alocar
@@ -795,7 +797,7 @@ public class GameService {
             .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
 
     String currentStatus = game.getStatus();
-    
+
     if (GameStatus.SETUP_ALLOCATION.name().equals(currentStatus)) {
       // Bloqueia tentativas de encerrar o turno durante a alocação inicial.
       throw new RuntimeException("Não é possível encerrar o turno na fase de Alocação Inicial.");
@@ -1145,7 +1147,7 @@ public class GameService {
       // Checa fim de jogo e elimina jogadores sem território
       checkGameOver(game, defenderPlayerGame);
 
-      if(winConditionService.checkWinConditions(game, currentPlayerGame)){
+      if (winConditionService.checkWinConditions(game, currentPlayerGame)) {
         System.out.println("Iniciando fim de jogo...");
         game.setStatus(GameStatus.FINISHED.name());
         return new AttackResult(attackRolls, defenseRolls, game);
@@ -1279,8 +1281,7 @@ public class GameService {
     Game game = event.getGame();
     PlayerGame winner = event.getWinner();
 
-    Game gameToUpdate = gameRepository.findById(game.getId())
-      .orElse(null);
+    Game gameToUpdate = gameRepository.findById(game.getId()).orElse(null);
     if (gameToUpdate == null) return;
 
     gameToUpdate.setStatus(GameStatus.FINISHED.name());
@@ -1289,10 +1290,7 @@ public class GameService {
 
     GameStateResponseDto gameState = this.convertToGameStateDto(finishedGame);
 
-    messagingTemplate.convertAndSend(
-        "/topic/game/" + finishedGame.getId() + "/state", 
-        gameState
-    );
+    messagingTemplate.convertAndSend("/topic/game/" + finishedGame.getId() + "/state", gameState);
 
     System.out.println("EVENTO DE FIM DE JOGO - " + finishedGame.getStatus());
   }
@@ -1722,8 +1720,6 @@ public class GameService {
         System.err.println("IA - Fase inesperada (Enum): " + status);
         return game;
     }
-
-    
   }
 
   // Alocação
@@ -1877,17 +1873,18 @@ public class GameService {
                 + " dados.");
 
         // Chama método de ataque
-        Game gameEnded = this.executeAIAttack(
-            game.getId(), aiUsername, sourceTerritoryId, targetTerritoryId, numDice);
+        Game gameEnded =
+            this.executeAIAttack(
+                game.getId(), aiUsername, sourceTerritoryId, targetTerritoryId, numDice);
 
         game =
             gameRepository
                 .findById(game.getId())
                 .orElseThrow(() -> new RuntimeException("Partida não encontrada."));
-        
+
         if (GameStatus.FINISHED.name().equals(gameEnded.getStatus())) {
-             System.out.println("IA - Jogo Vencido. ABORTANDO TURNO.");
-             return gameEnded;
+          System.out.println("IA - Jogo Vencido. ABORTANDO TURNO.");
+          return gameEnded;
         }
       } catch (RuntimeException e) {
         System.err.println("IA falhou ao executar o ataque. Parando: " + e.getMessage());
@@ -2295,5 +2292,4 @@ public class GameService {
 
     return dto;
   }
-
 }

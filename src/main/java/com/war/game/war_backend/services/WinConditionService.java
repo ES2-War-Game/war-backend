@@ -193,7 +193,7 @@ public class WinConditionService {
                               .equals(CONTINENT_TERRITORY_COUNT.getOrDefault(continent, 0L))
                           && CONTINENT_TERRITORY_COUNT.getOrDefault(continent, 0L) > 0)
               .count();
-      
+
       System.out.println("Continentes conquistados: " + totalContinentsControlled);
 
       return requiredAreConquered && totalContinentsControlled >= requiredContinents.size() + 1;
