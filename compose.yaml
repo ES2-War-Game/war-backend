@@ -47,6 +47,8 @@ services:
       - SPRING_DATA_REDIS_PORT=6379
       - SPRING_DATA_REDIS_PASSWORD=redis
       - SPRING_DATA_REDIS_USERNAME=default
+      - JWT_SECRET=alguma_chave_secreta
+      - SPRING_DATA_REDIS_SSL_ENABLED=false
     volumes:
       - ~/.m2:/root/.m2
     depends_on:
