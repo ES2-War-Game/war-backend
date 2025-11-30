@@ -47,7 +47,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     registry
         .addEndpoint("/ws")
         // Use as origens permitidas no seu SecurityConfig para maior segurança
-        .setAllowedOriginPatterns("http://localhost:5173", "http://localhost:3000", "https://war-frontend-two.vercel.app")
+        .setAllowedOriginPatterns("http://localhost:5173", "http://localhost:3000", "https://war-frontend-ten.vercel.app/")
         .withSockJS();
   }
 }
