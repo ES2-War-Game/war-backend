@@ -8,6 +8,7 @@ import java.util.HashSet;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,8 +23,6 @@ import com.war.game.war_backend.repository.PlayerRepository;
  * <p>Observações: - Usa o profile "test" que inicializa H2 em memória. - Cada teste roda dentro de
  * uma transação que será rollbackada ao final.
  */
-import org.springframework.context.annotation.Import;
-
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
